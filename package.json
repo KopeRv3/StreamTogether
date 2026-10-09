@@ -38,6 +38,7 @@
     "test:e2e": "npm run test:flow && npm run test:resilience",
     "test:flow": "node tests/e2e.mjs",
     "test:resilience": "node tests/resilience.mjs",
+    "test:sync": "node tests/sync.mjs",
     "test:proxy": "node tests/proxy-check.mjs",
     "test:all": "powershell -ExecutionPolicy Bypass -File tests/run.ps1",
 
