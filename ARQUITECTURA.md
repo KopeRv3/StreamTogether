@@ -206,26 +206,112 @@ CREATE TABLE chat_messages (
 
 ---
 
-## Sincronización de Video (Simplificada)
+## Fuentes de Video
+
+El proyecto maneja dos orígenes, unificados detrás de la misma interfaz de controles:
+
+| `Video.source` | Almacenamiento | Player |
+|---|---|---|
+| `upload` | Disco local en `server/uploads/` | `<video>` nativo (HTML5) |
+| `youtube` | Solo el ID (`youtubeId`) | `YouTubePlayer` con IFrame API |
+
+Ambos players exponen la misma interfaz (`play` / `pause` / `seek` / `getCurrentTime`),
+así que `useMediaSync` no distingue entre ellos.
+
+### Por qué la IFrame Player API y no un `<iframe>`
+
+Sincronizar exige **leer y escribir `currentTime`** desde la página anfitriona. Un
+`<iframe>` normal de YouTube lo prohíbe por seguridad de origen: la propiedad
+`contentWindow` es cross-origin y no se puede tocar.
+
+La IFrame Player API oficial sí expone:
+
+```js
+player.getCurrentTime()      // leer posición
+player.seekTo(segundos, true)
+player.playVideo()
+player.pauseVideo()
+player.getPlayerState()      // ENDED, PLAYING, PAUSED, BUFFERING...
+```
+
+Sin ella no hay sincronización posible con videos de YouTube.
+
+### Extracción del ID de YouTube
+
+Se acepta cualquier formato y se normaliza al ID de 11 caracteres:
+
+```
+https://www.youtube.com/watch?v=ID    → ID
+https://youtu.be/ID                   → ID
+https://www.youtube.com/embed/ID     → ID
+https://www.youtube.com/shorts/ID    → ID
+https://www.youtube.com/live/ID      → ID
+ID                                    → ID
+```
+
+Se rechaza si el host no es de YouTube (evita que un atacante use un dominio propio
+con la misma estructura de ruta) y si el ID no cumple el formato de 11 caracteres.
+
+---
+
+## Sincronización de Video
 
 ### Estrategia: "Anfitrión como Maestro"
 
-1. **Anfitrión** controla el player y envía eventos con timestamp del servidor
-2. **Servidor** guarda estado en memoria (Map) y hace broadcast
-3. **Participantes** reciben eventos y ajustan su player
-4. **Heartbeat** cada 5 segundos para corrección de drift
+1. **Anfitrión** controla el player y emite `sync:event`
+2. **Servidor** valida contra la base de datos que quien emite es el anfitrión,
+   guarda el estado y hace broadcast
+3. **Participantes** calculan la posición objetivo y ajustan su player
+4. **Heartbeat** del anfitrión cada 5 s para corregir la deriva
 
 ### Flujo de Eventos
 
 ```
 Anfitrión: play @ 120s
     ↓
-Servidor: guarda { position: 120, playing: true, timestamp: 1696000000000 }
+Servidor: valida rol → guarda { position: 120, playing: true, timestamp: T }
     ↓
-Broadcast a participantes
+Broadcast a la sala
     ↓
-Participante: recibe evento, calcula delay, ajusta player a 120 + delay
+Participante: calcula offset de reloj, ajusta a position + elapsed
 ```
+
+### Corrección de deriva
+
+El error más sutil: comparar `Date.now()` del cliente contra `serverTime` del servidor
+assume que ambos relojes coinciden, y casi nunca lo hacen.
+
+Solución: cada mensaje lleva `serverTime`; el cliente estima la diferencia con una
+media móvil y calcula:
+
+```
+posición_objetivo = posición + (ahora_en_reloj_del_servidor - serverTime)
+```
+
+La corrección solo se aplica si la diferencia supera **1.25 s**, para no producir
+saltos visibles por jitter normal de red.
+
+### Reconexión
+
+Cuando el socket se cae se pierde la pertenencia a la sala (vive en el servidor).
+Al reconectar hay que **re-emitir `room:join` y `sync:requestState`**; sin eso el
+usuario se queda mirando un player que ya no recibe nada.
+
+---
+
+## Límites de Escalado
+
+Dos estructuras en memoria que hoy funcionan con una sola instancia:
+
+| Ubicación | Qué es | Con varias réplicas |
+|---|---|---|
+| `sockets/syncHandlers.ts` → `states` | Estado de reproducción por sala | Divergen: cada réplica cree la suya |
+| `middleware/rateLimit.ts` → `buckets` | Contadores de peticiones | Los límites se multiplican por instancia |
+
+Ambas necesitan Redis cuando haya más de una instancia. Están marcadas con
+comentarios en el código.
+
+Los JWT no tienen ese problema: al ser stateless ya escalan solos.
 
 ---
 
