@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRoomStore } from '../../stores/roomStore';
-import { useAuthStore } from '../../stores/authStore';
 import { getSocket } from '../../lib/socket';
 import { Avatar } from '../ui/Avatar';
 
@@ -8,10 +7,10 @@ export function Chat() {
   const [message, setMessage] = useState('');
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // ReturnType evita depender de tipos de Node dentro de un componente React
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { messages, currentRoom, participants } = useRoomStore();
-  const { user } = useAuthStore();
+  const { messages, currentRoom } = useRoomStore();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

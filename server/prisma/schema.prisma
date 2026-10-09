@@ -20,20 +20,30 @@ model User {
   participants RoomParticipant[]
   messages     ChatMessage[]
   history      WatchHistory[]
+  videos       Video[]
 }
 
 model Video {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  duration    Int
+  id           String   @id @default(uuid())
+  title        String
+  description  String?
+  duration     Int      @default(0)
   thumbnailUrl String?
-  videoUrl    String
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
+  // Fuente "upload": videoUrl apunta a /uploads/<archivo>
+  // Fuente "youtube": youtubeId guarda el ID de YouTube y videoUrl es la URL original
+  videoUrl     String
+  youtubeId    String?
+  source       String   @default("upload")
+  ownerId      String?
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
 
-  rooms       Room[]
-  history     WatchHistory[]
+  owner   User?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  rooms   Room[]
+  history WatchHistory[]
+
+  @@index([source])
+  @@index([ownerId])
 }
 
 model Room {

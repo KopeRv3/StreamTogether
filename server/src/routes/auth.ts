@@ -1,23 +1,50 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimit';
 import { registerUser, loginUser, getUserById } from '../services/authService';
 
 export const authRouter = Router();
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,30}$/;
+const MIN_PASSWORD = 6;
+
+function validateCredentials(email: unknown, username: unknown, password: unknown) {
+  if (typeof email !== 'string' || typeof username !== 'string' || typeof password !== 'string') {
+    return 'Email, username y password son requeridos';
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanUsername = username.trim();
+
+  if (!EMAIL_RE.test(cleanEmail)) return 'El email no tiene un formato válido';
+
+  if (!USERNAME_RE.test(cleanUsername)) {
+    return 'El username debe tener 3-30 caracteres (letras, números, . _ -)';
+  }
+
+  if (password.length < MIN_PASSWORD) {
+    return `La contraseña debe tener al menos ${MIN_PASSWORD} caracteres`;
+  }
+
+  if (password.length > 200) return 'La contraseña es demasiado larga';
+
+  return null;
+}
+
 // POST /api/auth/register
-authRouter.post('/register', async (req: AuthRequest, res: Response) => {
+authRouter.post('/register', authLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { email, username, password } = req.body;
+    const { email, username, password } = req.body ?? {};
 
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: 'Email, username y password son requeridos' });
-    }
+    const invalid = validateCredentials(email, username, password);
+    if (invalid) return res.status(400).json({ error: invalid });
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'El password debe tener al menos 6 caracteres' });
-    }
-
-    const result = await registerUser(email, username, password);
+    const result = await registerUser(
+      email.trim().toLowerCase(),
+      username.trim(),
+      password as string,
+    );
     res.status(201).json(result);
   } catch (error) {
     if (error instanceof Error) {
@@ -29,22 +56,19 @@ authRouter.post('/register', async (req: AuthRequest, res: Response) => {
 });
 
 // POST /api/auth/login
-authRouter.post('/login', async (req: AuthRequest, res: Response) => {
+authRouter.post('/login', authLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body ?? {};
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return res.status(400).json({ error: 'Email y password son requeridos' });
     }
 
-    const result = await loginUser(email, password);
+    const result = await loginUser(email.trim().toLowerCase(), password);
     res.json(result);
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(401).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    // Mensaje genérico: no revela si el email existe o no
+    res.status(401).json({ error: error instanceof Error ? error.message : 'Credenciales inválidas' });
   }
 });
 

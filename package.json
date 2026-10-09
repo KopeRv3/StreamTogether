@@ -1,0 +1,25 @@
+{
+  "name": "streamtogether",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ver videos sincronizados y chatea en tiempo real con amigos. React + Node.js + Socket.IO + Prisma",
+  "license": "MIT",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix web install",
+    "db:generate": "npm --prefix server run db:generate",
+    "db:push": "npm --prefix server run db:push",
+    "db:studio": "npm --prefix server run db:studio",
+    "dev:server": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm --prefix server run build && npm --prefix web run build",
+    "start": "npm --prefix server run start",
+    "preview": "npm --prefix web run preview",
+    "test": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

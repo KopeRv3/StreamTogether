@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { roomLimiter } from '../middleware/rateLimit';
 import {
   createRoom,
   joinRoom,
@@ -12,37 +13,37 @@ import {
 
 export const roomsRouter = Router();
 
+function fail(res: Response, error: unknown, fallbackStatus = 500) {
+  if (error instanceof Error) {
+    const status = (error as { statusCode?: number }).statusCode ?? fallbackStatus;
+    return res.status(status).json({ error: error.message });
+  }
+  return res.status(500).json({ error: 'Error interno' });
+}
+
 // POST /api/rooms - Create a new room
-roomsRouter.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+roomsRouter.post('/', authMiddleware, roomLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const room = await createRoom(req.userId!);
     res.status(201).json({ room });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error);
   }
 });
 
 // POST /api/rooms/join - Join a room by code
-roomsRouter.post('/join', authMiddleware, async (req: AuthRequest, res: Response) => {
+roomsRouter.post('/join', authMiddleware, roomLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { code } = req.body;
+    const { code } = req.body ?? {};
 
-    if (!code) {
+    if (!code || typeof code !== 'string') {
       return res.status(400).json({ error: 'Código de sala requerido' });
     }
 
-    const result = await joinRoom(code.toUpperCase(), req.userId!);
+    const result = await joinRoom(code.trim().toUpperCase().slice(0, 10), req.userId!);
     res.json(result);
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error, 404);
   }
 });
 
@@ -52,11 +53,7 @@ roomsRouter.post('/:id/leave', authMiddleware, async (req: AuthRequest, res: Res
     await leaveRoom(req.params.id, req.userId!);
     res.json({ success: true });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error);
   }
 });
 
@@ -66,59 +63,42 @@ roomsRouter.post('/:id/close', authMiddleware, async (req: AuthRequest, res: Res
     await closeRoom(req.params.id, req.userId!);
     res.json({ success: true });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(403).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error, 403);
   }
 });
 
 // POST /api/rooms/:id/video - Set room video (host only)
 roomsRouter.post('/:id/video', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const { videoId } = req.body;
+    const { videoId } = req.body ?? {};
 
-    if (!videoId) {
+    if (!videoId || typeof videoId !== 'string') {
       return res.status(400).json({ error: 'videoId requerido' });
     }
 
     await setRoomVideo(req.params.id, videoId, req.userId!);
     res.json({ success: true });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(403).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error, 403);
   }
 });
 
-// GET /api/rooms/:id - Get room state
+// GET /api/rooms/:id - Get room state (participantes únicamente)
 roomsRouter.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const room = await getRoomState(req.params.id);
+    const room = await getRoomState(req.params.id, req.userId!);
     res.json({ room });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error, 404);
   }
 });
 
-// GET /api/rooms/:id/messages - Get room messages
+// GET /api/rooms/:id/messages - Get room chat history (participantes únicamente)
 roomsRouter.get('/:id/messages', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    const messages = await getRoomMessages(req.params.id, limit);
+    const messages = await getRoomMessages(req.params.id, req.userId!, req.query.limit as string);
     res.json({ messages: messages.reverse() });
   } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
+    return fail(res, error);
   }
 });

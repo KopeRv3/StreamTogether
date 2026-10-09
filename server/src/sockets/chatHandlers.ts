@@ -1,47 +1,72 @@
 import { Server, Socket } from 'socket.io';
 import { PrismaClient } from '@prisma/client';
+import { isRoomParticipant } from '../services/roomService';
 
 const prisma = new PrismaClient();
 
+const MAX_LENGTH = 500;
+
 export function handleChatEvents(io: Server, socket: Socket) {
-  // Send a chat message
+  // Cachea la pertenencia por conexión: evita una query por cada pulsación
+  // de "escribiendo", que sería una consulta constante a la base de datos.
+  const membership = new Map<string, boolean>();
+
   socket.on('chat:message', async (data: { roomId: string; content: string }) => {
-    const { roomId, content } = data;
-    const userId = socket.data.userId;
+    const { roomId, content } = data ?? ({} as never);
+    const userId = socket.data.userId as string;
 
-    if (!content || content.trim().length === 0) {
+    if (!roomId || typeof content !== 'string') return;
+
+    const clean = content.trim();
+    if (!clean) return;
+
+    if (clean.length > MAX_LENGTH) {
+      socket.emit('chat:error', { message: `Mensaje demasiado largo (máx ${MAX_LENGTH} caracteres)` });
       return;
     }
 
-    if (content.length > 500) {
-      socket.emit('chat:error', { message: 'Mensaje demasiado largo (máx 500 caracteres)' });
+    // Verifica pertenencia antes de escribir
+    let allowed = membership.get(roomId);
+    if (allowed === undefined) {
+      allowed = await isRoomParticipant(roomId, userId);
+      membership.set(roomId, allowed);
+    }
+
+    if (!allowed) {
+      socket.emit('chat:error', { message: 'No tienes acceso a esta sala' });
       return;
     }
 
-    // Save to database
-    const message = await prisma.chatMessage.create({
-      data: {
-        roomId,
-        userId,
-        content: content.trim(),
-      },
-      include: {
-        user: { select: { id: true, username: true, avatarUrl: true } },
-      },
-    });
+    let message;
+    try {
+      message = await prisma.chatMessage.create({
+        data: { roomId, userId, content: clean },
+        include: { user: { select: { id: true, username: true, avatarUrl: true } } },
+      });
+    } catch {
+      socket.emit('chat:error', { message: 'No se pudo enviar el mensaje' });
+      return;
+    }
 
-    // Broadcast to room
     io.to(`room:${roomId}`).emit('chat:message', message);
   });
 
-  // User is typing
-  socket.on('chat:typing', (data: { roomId: string; isTyping: boolean }) => {
-    const { roomId, isTyping } = data;
+  socket.on('chat:typing', async (data: { roomId: string; isTyping: boolean }) => {
+    const { roomId, isTyping } = data ?? ({} as never);
+    if (!roomId) return;
+
+    let allowed = membership.get(roomId);
+    if (allowed === undefined) {
+      allowed = await isRoomParticipant(roomId, socket.data.userId as string);
+      membership.set(roomId, allowed);
+    }
+
+    if (!allowed) return;
 
     socket.to(`room:${roomId}`).emit('chat:typing', {
       userId: socket.data.userId,
       username: socket.data.username,
-      isTyping,
+      isTyping: !!isTyping,
     });
   });
 }

@@ -2,7 +2,7 @@ import { useRoomStore } from '../../stores/roomStore';
 import { Avatar } from '../ui/Avatar';
 
 export function ParticipantList() {
-  const { participants, isHost } = useRoomStore();
+  const { participants } = useRoomStore();
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4">

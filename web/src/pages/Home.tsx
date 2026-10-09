@@ -57,7 +57,7 @@ export function Home() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">VerPelisJuntos</h1>
+          <h1 className="text-xl font-bold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">StreamTogether</h1>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Avatar username={user?.username || ''} avatarUrl={user?.avatarUrl} size="sm" />
@@ -76,11 +76,8 @@ export function Home() {
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
             ¿Qué quieres hacer hoy?
           </h2>
-          <p className="text-gray-600 mb-2">
+          <p className="text-gray-600">
             Crea una sala para ver con amigos o únete a una existente
-          </p>
-          <p className="text-lg font-medium bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">
-            Para mi y mi Guerita hermosa
           </p>
         </div>
 
