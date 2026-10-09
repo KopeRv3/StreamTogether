@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 dist-ssr/
+*.tsbuildinfo
 
 # Variables de entorno (NUNCA subir el .env real)
 .env
@@ -16,6 +17,7 @@ dist-ssr/
 *.db-journal
 *.sqlite
 *.sqlite3
+server/prisma/*.db*
 
 # Archivos subidos por usuarios
 uploads/

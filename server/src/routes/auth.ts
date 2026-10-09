@@ -1,63 +1,52 @@
-import { Router, Response } from 'express';
+import { Router } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimit';
 import { registerUser, loginUser, getUserById } from '../services/authService';
+import { validateEmail, validateUsername, validatePassword } from '../utils/validation';
+import { asyncHandler } from '../utils/asyncHandler';
 
 export const authRouter = Router();
 
 // POST /api/auth/register
-authRouter.post('/register', async (req: AuthRequest, res: Response) => {
-  try {
-    const { email, username, password } = req.body;
+authRouter.post(
+  '/register',
+  authLimiter,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const { email, username, password } = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: 'Email, username y password son requeridos' });
-    }
+    // Cada validador lanza AppError con el codigo HTTP y el mensaje en espanol
+    const cleanEmail = validateEmail(email);
+    const cleanUsername = validateUsername(username);
+    const cleanPassword = validatePassword(password);
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'El password debe tener al menos 6 caracteres' });
-    }
-
-    const result = await registerUser(email, username, password);
+    const result = await registerUser(cleanEmail, cleanUsername, cleanPassword);
     res.status(201).json(result);
-  } catch (error) {
-    if (error instanceof Error) {
-      res.status(400).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
-  }
-});
+  }),
+);
 
 // POST /api/auth/login
-authRouter.post('/login', async (req: AuthRequest, res: Response) => {
-  try {
-    const { email, password } = req.body;
+authRouter.post(
+  '/login',
+  authLimiter,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const { email, password } = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email y password son requeridos' });
-    }
+    const cleanEmail = validateEmail(email);
+    // No se valida la longitud del password: un login fallido con cualquier
+    // contrasena debe dar el mismo 401, sin revelar la politica de contrasenas
+    const cleanPassword = typeof password === 'string' ? password : '';
 
-    const result = await loginUser(email, password);
+    const result = await loginUser(cleanEmail, cleanPassword);
     res.json(result);
-  } catch (error) {
-    if (error instanceof Error) {
-      res.status(401).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
-  }
-});
+  }),
+);
 
 // GET /api/auth/me
-authRouter.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
+authRouter.get(
+  '/me',
+  authMiddleware,
+  asyncHandler(async (req: AuthRequest, res) => {
     const user = await getUserById(req.userId!);
     res.json({ user });
-  } catch (error) {
-    if (error instanceof Error) {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
-  }
-});
+  }),
+);

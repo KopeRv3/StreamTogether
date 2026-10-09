@@ -54,7 +54,7 @@ export async function joinRoom(code: string, userId: string) {
     throw new AppError('La sala ha sido cerrada', 400);
   }
 
-  const existingParticipant = room.participants.find(p => p.userId === userId);
+  const existingParticipant = room.participants.find((p) => p.userId === userId);
 
   if (existingParticipant && !existingParticipant.leftAt) {
     return { room, alreadyJoined: true };
@@ -144,7 +144,22 @@ export async function setRoomVideo(roomId: string, videoId: string, hostId: stri
   });
 }
 
-export async function getRoomState(roomId: string) {
+/**
+ * Estado completo de una sala.
+ *
+ * OBLIGATORIO pasar userId: sin verificar participación, cualquier usuario
+ * autenticado podría leer el chat y la lista de participantes de salas ajenas.
+ */
+export async function getRoomState(roomId: string, userId: string) {
+  const participant = await prisma.roomParticipant.findFirst({
+    where: { roomId, userId, leftAt: null },
+    select: { id: true },
+  });
+
+  if (!participant) {
+    throw new AppError('No tienes acceso a esta sala', 403);
+  }
+
   const room = await prisma.room.findUnique({
     where: { id: roomId },
     include: {
@@ -164,11 +179,44 @@ export async function getRoomState(roomId: string) {
   return room;
 }
 
-export async function getRoomMessages(roomId: string, limit: number = 50) {
+/**
+ * Historial de chat de una sala.
+ * También exige ser participante activo.
+ */
+export async function getRoomMessages(roomId: string, userId: string, limit: string | number = 50) {
+  const participant = await prisma.roomParticipant.findFirst({
+    where: { roomId, userId, leftAt: null },
+    select: { id: true },
+  });
+
+  if (!participant) {
+    throw new AppError('No tienes acceso a esta sala', 403);
+  }
+
+  const safeLimit = Math.min(Math.max(parseInt(String(limit), 10) || 50, 1), 200);
+
   return prisma.chatMessage.findMany({
     where: { roomId },
     orderBy: { createdAt: 'desc' },
-    take: limit,
+    take: safeLimit,
     include: { user: { select: { id: true, username: true, avatarUrl: true } } },
   });
+}
+
+/** ¿Es este usuario el anfitrión activo de la sala? */
+export async function isRoomHost(roomId: string, userId: string): Promise<boolean> {
+  const room = await prisma.room.findUnique({
+    where: { id: roomId },
+    select: { hostId: true },
+  });
+  return !!room && room.hostId === userId;
+}
+
+/** El usuario debe ser participante activo de la sala. */
+export async function isRoomParticipant(roomId: string, userId: string): Promise<boolean> {
+  const participant = await prisma.roomParticipant.findFirst({
+    where: { roomId, userId, leftAt: null },
+    select: { id: true },
+  });
+  return !!participant;
 }

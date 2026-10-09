@@ -1,0 +1,48 @@
+# Despliegue en Render (https://render.com)
+#
+# Sube este repositorio en Render > New > Blueprint y pointed a este archivo.
+# El backend y la base de datos Postgres se crean a la vez.
+#
+# IMPORTANTE: tras desplegar, en el panel del web service hay que definir
+# VITE_API_URL con el dominio del backend y volver a desplegar.
+
+databases:
+  - name: streamtogether-db
+    databaseName: streamtogether
+    user: streamtogether
+    plan: free
+    postgresMajorVersion: '16'
+
+services:
+  - type: web
+    name: streamtogether-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: free
+    healthCheckPath: /api/health
+    # Render apaga el servicio tras 15 min de inactividad en el plan gratuito.
+    # Eso corta las salas activas, asi que para produccion hace falta plan paid.
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: streamtogether-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URL
+        sync: false
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: MAX_FILE_SIZE
+        value: 524288000
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 1

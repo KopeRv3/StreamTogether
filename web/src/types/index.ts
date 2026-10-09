@@ -6,13 +6,20 @@ export interface User {
   createdAt: string;
 }
 
+export type VideoSource = 'upload' | 'youtube';
+
 export interface Video {
   id: string;
   title: string;
   description: string | null;
   duration: number;
   thumbnailUrl: string | null;
+  /** Upload: ruta local /uploads/...  YouTube: URL original */
   videoUrl: string;
+  /** Solo presente cuando source === 'youtube' */
+  youtubeId: string | null;
+  source: VideoSource;
+  ownerId: string | null;
   status: string;
   createdAt: string;
 }

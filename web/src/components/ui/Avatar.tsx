@@ -22,15 +22,12 @@ export function Avatar({ username, avatarUrl, size = 'md' }: AvatarProps) {
     'bg-teal-500',
   ];
 
-  const colorIndex = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+  const colorIndex =
+    username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
 
   if (avatarUrl) {
     return (
-      <img
-        src={avatarUrl}
-        alt={username}
-        className={`${sizes[size]} rounded-full object-cover`}
-      />
+      <img src={avatarUrl} alt={username} className={`${sizes[size]} rounded-full object-cover`} />
     );
   }
 
