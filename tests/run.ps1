@@ -102,8 +102,13 @@ try {
 } catch { }
 
 if ($webListening) {
-  # La suite de resiliencia agota el limitador de registro, asi que el proxy
-  # necesita un backend limpio otra vez
+  # Cada suite agota el limitador de registro a proposito, asi que todas
+  # necesitan un backend limpio
+  Stop-Backend
+  $proc = Start-Backend
+  if (-not $proc) { exit 1 }
+  $codigos["sync"] = Invoke-Suite "tests/sync.mjs" "Sincronizacion extremo a extremo"
+
   Stop-Backend
   $proc = Start-Backend
   if (-not $proc) { exit 1 }
