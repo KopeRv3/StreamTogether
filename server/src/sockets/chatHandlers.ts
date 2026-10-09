@@ -21,7 +21,9 @@ export function handleChatEvents(io: Server, socket: Socket) {
     if (!clean) return;
 
     if (clean.length > MAX_LENGTH) {
-      socket.emit('chat:error', { message: `Mensaje demasiado largo (máx ${MAX_LENGTH} caracteres)` });
+      socket.emit('chat:error', {
+        message: `Mensaje demasiado largo (máx ${MAX_LENGTH} caracteres)`,
+      });
       return;
     }
 

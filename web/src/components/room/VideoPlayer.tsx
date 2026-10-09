@@ -155,7 +155,11 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, { src: string }>(({ src },
               )}
             </button>
 
-            <button onClick={toggleMute} aria-label="Silenciar" className="text-white hover:text-pink-400">
+            <button
+              onClick={toggleMute}
+              aria-label="Silenciar"
+              className="text-white hover:text-pink-400"
+            >
               {isMuted || volume === 0 ? '🔇' : '🔊'}
             </button>
 
@@ -178,9 +182,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, { src: string }>(({ src },
           </button>
         </div>
 
-        {!isHost && (
-          <p className="text-white/50 text-xs mt-1">Sincronizado con el anfitrión</p>
-        )}
+        {!isHost && <p className="text-white/50 text-xs mt-1">Sincronizado con el anfitrión</p>}
       </div>
     </div>
   );

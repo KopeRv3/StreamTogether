@@ -1,11 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { useRoomStore } from '../../stores/roomStore';
 import { useMediaSync, MediaControls } from '../../hooks/useMediaSync';
-import {
-  loadYouTubeApi,
-  YT_STATE,
-  type YTPlayer,
-  } from '../../lib/youtube';
+import { loadYouTubeApi, YT_STATE, type YTPlayer } from '../../lib/youtube';
 
 export interface YouTubePlayerRef extends MediaControls {
   getDuration: () => number;
@@ -221,9 +217,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerRef, { videoId: string; tit
                 {isPlaying ? '❚❚ Pausar' : '▶ Reproducir'}
               </button>
             ) : (
-              <span className="text-white/60 text-xs">
-                Sincronizado con el anfitrión
-              </span>
+              <span className="text-white/60 text-xs">Sincronizado con el anfitrión</span>
             )}
           </div>
           {title && <p className="text-white/60 text-xs mt-1 truncate">{title}</p>}

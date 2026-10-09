@@ -54,7 +54,7 @@ export async function joinRoom(code: string, userId: string) {
     throw new AppError('La sala ha sido cerrada', 400);
   }
 
-  const existingParticipant = room.participants.find(p => p.userId === userId);
+  const existingParticipant = room.participants.find((p) => p.userId === userId);
 
   if (existingParticipant && !existingParticipant.leftAt) {
     return { room, alreadyJoined: true };
@@ -183,11 +183,7 @@ export async function getRoomState(roomId: string, userId: string) {
  * Historial de chat de una sala.
  * También exige ser participante activo.
  */
-export async function getRoomMessages(
-  roomId: string,
-  userId: string,
-  limit: string | number = 50,
-) {
+export async function getRoomMessages(roomId: string, userId: string, limit: string | number = 50) {
   const participant = await prisma.roomParticipant.findFirst({
     where: { roomId, userId, leftAt: null },
     select: { id: true },

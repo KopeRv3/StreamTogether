@@ -252,7 +252,9 @@ export function Upload() {
               label="Título"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={mode === 'youtube' ? 'Se autogenera si lo dejas vacío' : 'Nombre del video'}
+              placeholder={
+                mode === 'youtube' ? 'Se autogenera si lo dejas vacío' : 'Nombre del video'
+              }
               required={mode === 'upload'}
             />
 

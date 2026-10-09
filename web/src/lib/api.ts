@@ -46,9 +46,7 @@ async function request<T>(
   const data = await parseBody(response);
 
   if (!response.ok) {
-    throw new Error(
-      (data.error as string) || `Error ${response.status} en la petición`,
-    );
+    throw new Error((data.error as string) || `Error ${response.status} en la petición`);
   }
 
   return data as T;

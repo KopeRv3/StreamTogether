@@ -148,10 +148,23 @@ export function youtubeThumbnail(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
 
-/** Duración aproximada a partir del título "[Official Video] 12:34". */
+/**
+ * Duración aproximada a partir del título, p. ej. "Video oficial 12:34".
+ *
+ * Acepta el tiempo rodeado de cualquier cosa (paréntesis, corchetes, guiones),
+ * no solo espacios: "Concert (45:00)" también debe funcionar.
+ */
 export function parseDurationFromTitle(title: string | null | undefined): number {
   if (!title) return 0;
-  const match = /(?:^|\s)(\d{1,2}):(\d{2})(?=\s|$)/.exec(title);
+
+  const match = /(?:^|[^\d:])(\d{1,3}):([0-5]\d)(?!\d)/.exec(title);
   if (!match) return 0;
-  return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+
+  const minutes = parseInt(match[1], 10);
+  const seconds = parseInt(match[2], 10);
+
+  // Descarta horas, tiempos invertidos o clock (12:75)
+  if (minutes > 599 || seconds > 59) return 0;
+
+  return minutes * 60 + seconds;
 }

@@ -69,7 +69,11 @@ export function handleSyncEvents(io: Server, socket: Socket) {
       const serverTime = Date.now();
       const cleanPosition = Math.floor(position);
 
-      setRoomSyncState(roomId, { position: cleanPosition, playing: type === 'play', timestamp: serverTime });
+      setRoomSyncState(roomId, {
+        position: cleanPosition,
+        playing: type === 'play',
+        timestamp: serverTime,
+      });
 
       socket.to(`room:${roomId}`).emit('sync:event', {
         type,

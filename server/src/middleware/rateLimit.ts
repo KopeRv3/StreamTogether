@@ -12,7 +12,11 @@ interface Bucket {
  */
 export function rateLimit(options: { windowMs: number; max: number; message?: string }) {
   const buckets = new Map<string, Bucket>();
-  const { windowMs, max, message = 'Demasiadas peticiones. Intenta de nuevo en un momento.' } = options;
+  const {
+    windowMs,
+    max,
+    message = 'Demasiadas peticiones. Intenta de nuevo en un momento.',
+  } = options;
 
   // Limpieza periódica para no crecer sin límite
   const sweeper = setInterval(() => {

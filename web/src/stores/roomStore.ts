@@ -37,8 +37,7 @@ export const useRoomStore = create<RoomStateStore>((set) => ({
     set((state) => ({
       participants: state.participants.filter((p) => p.userId !== userId),
     })),
-  addMessage: (message) =>
-    set((state) => ({ messages: [...state.messages, message] })),
+  addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
   setMessages: (messages) => set({ messages }),
   setSyncState: (syncState) => set({ syncState }),
   setIsHost: (isHost) => set({ isHost }),

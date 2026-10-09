@@ -182,7 +182,11 @@ async function main() {
     method: 'POST',
     body: { email: host.user.email, password: 'incorrecta' },
   });
-  ok('login con contrasena incorrecta da 401', badLogin.status === 401, `status ${badLogin.status}`);
+  ok(
+    'login con contrasena incorrecta da 401',
+    badLogin.status === 401,
+    `status ${badLogin.status}`,
+  );
 
   const weak = await api('/api/auth/register', {
     method: 'POST',
@@ -194,13 +198,21 @@ async function main() {
     method: 'POST',
     body: { email: 'no-es-un-email', username: `x${stamp}`, password: '1234567' },
   });
-  ok('registro con email invalido es rechazado', badEmail.status === 400, `status ${badEmail.status}`);
+  ok(
+    'registro con email invalido es rechazado',
+    badEmail.status === 400,
+    `status ${badEmail.status}`,
+  );
 
   const badUser = await api('/api/auth/register', {
     method: 'POST',
     body: { email: `sp${stamp}@example.com`, username: 'a b', password: '1234567' },
   });
-  ok('registro con username invalido es rechazado', badUser.status === 400, `status ${badUser.status}`);
+  ok(
+    'registro con username invalido es rechazado',
+    badUser.status === 400,
+    `status ${badUser.status}`,
+  );
 
   const noAuth = await api('/api/rooms', { method: 'POST' });
   ok('crear sala sin token da 401', noAuth.status === 401, `status ${noAuth.status}`);
@@ -294,10 +306,7 @@ async function main() {
   );
   ok('marca la fuente como "youtube"', ytVideo.body?.video?.source === 'youtube');
   ok('asigna el ownerId', ytVideo.body?.video?.ownerId === host.user.id);
-  ok(
-    'genera thumbnail de YouTube',
-    /i\.ytimg\.com/.test(ytVideo.body?.video?.thumbnailUrl ?? ''),
-  );
+  ok('genera thumbnail de YouTube', /i\.ytimg\.com/.test(ytVideo.body?.video?.thumbnailUrl ?? ''));
 
   const dup = await api('/api/videos/youtube', {
     method: 'POST',
@@ -326,13 +335,21 @@ async function main() {
     body: { videoId: ytVideo.body.video.id },
     token: guest.token,
   });
-  ok('un NO anfitrion NO puede cambiar el video', guestPick.status === 403, `status ${guestPick.status}`);
+  ok(
+    'un NO anfitrion NO puede cambiar el video',
+    guestPick.status === 403,
+    `status ${guestPick.status}`,
+  );
 
   const guestClose = await api(`/api/rooms/${room.id}/close`, {
     method: 'POST',
     token: guest.token,
   });
-  ok('un NO anfitrion NO puede cerrar la sala', guestClose.status === 403, `status ${guestClose.status}`);
+  ok(
+    'un NO anfitrion NO puede cerrar la sala',
+    guestClose.status === 403,
+    `status ${guestClose.status}`,
+  );
 
   // Este era el fallo de seguridad original: solo exigia "estar logueado"
   const intruderRead = await api(`/api/rooms/${room.id}`, { token: intruder.token });
@@ -350,7 +367,11 @@ async function main() {
   );
 
   const memberRead = await api(`/api/rooms/${room.id}`, { token: guest.token });
-  ok('un participante SI puede leer la sala', memberRead.status === 200, `status ${memberRead.status}`);
+  ok(
+    'un participante SI puede leer la sala',
+    memberRead.status === 200,
+    `status ${memberRead.status}`,
+  );
 
   // ------------------------------------------------------------------
   section('6. Propiedad de videos');
@@ -358,7 +379,11 @@ async function main() {
     method: 'DELETE',
     token: intruder.token,
   });
-  ok('un usuario ajeno NO puede borrar el video', foreignDelete.status === 403, `status ${foreignDelete.status}`);
+  ok(
+    'un usuario ajeno NO puede borrar el video',
+    foreignDelete.status === 403,
+    `status ${foreignDelete.status}`,
+  );
 
   const stillThere = await api('/api/videos', { token: host.token });
   ok(
@@ -407,8 +432,16 @@ async function main() {
     const syncPromise = waitFor(guestSocket, 'sync:event', 4000);
     hostSocket.emit('sync:event', { roomId: room.id, type: 'play', position: 42 });
     const syncEvent = await syncPromise;
-    ok('el participante recibe el evento sync del anfitrion', !!syncEvent, JSON.stringify(syncEvent));
-    ok('el evento trae la posicion correcta', syncEvent?.position === 42, `position=${syncEvent?.position}`);
+    ok(
+      'el participante recibe el evento sync del anfitrion',
+      !!syncEvent,
+      JSON.stringify(syncEvent),
+    );
+    ok(
+      'el evento trae la posicion correcta',
+      syncEvent?.position === 42,
+      `position=${syncEvent?.position}`,
+    );
     ok('el evento indica "play"', syncEvent?.type === 'play');
     ok('el evento incluye serverTime', typeof syncEvent?.serverTime === 'number');
 
@@ -425,7 +458,11 @@ async function main() {
     const hbPromise = waitFor(guestSocket, 'sync:heartbeat', 4000);
     hostSocket.emit('sync:heartbeat', { roomId: room.id, position: 77, playing: true });
     const heartbeat = await hbPromise;
-    ok('el participante recibe el heartbeat', heartbeat?.position === 77, JSON.stringify(heartbeat));
+    ok(
+      'el participante recibe el heartbeat',
+      heartbeat?.position === 77,
+      JSON.stringify(heartbeat),
+    );
 
     const statePromise = waitFor(guestSocket, 'sync:state', 4000);
     guestSocket.emit('sync:requestState', { roomId: room.id });
@@ -440,7 +477,11 @@ async function main() {
     const chatPromise = waitFor(hostSocket, 'chat:message', 4000);
     guestSocket.emit('chat:message', { roomId: room.id, content: 'Hola a todos' });
     const chat = await chatPromise;
-    ok('el chat llega al otro participante', chat?.content === 'Hola a todos', JSON.stringify(chat));
+    ok(
+      'el chat llega al otro participante',
+      chat?.content === 'Hola a todos',
+      JSON.stringify(chat),
+    );
     ok('el chat incluye el usuario emisor', !!chat?.user?.username, JSON.stringify(chat?.user));
 
     const emptyChat = waitFor(guestSocket, 'chat:error', 2000);

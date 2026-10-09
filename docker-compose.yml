@@ -1,0 +1,61 @@
+# Entorno de desarrollo completo con Docker.
+#
+#   docker compose up --build
+#
+# Frontend: http://localhost:5173   (nginx, con hot reload montado)
+# Backend:  http://localhost:3001
+#
+# A diferencia de `npm run dev`, aqui el frontend se sirve ya compilado.
+# Para recargar los cambios hay que reconstruir: docker compose up --build -w web
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: streamtogether
+      POSTGRES_PASSWORD: streamtogether
+      POSTGRES_DB: streamtogether
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U streamtogether']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://streamtogether:streamtogether@db:5432/streamtogether
+      JWT_SECRET: ${JWT_SECRET:-cambia-esto-en-produccion-por-un-secreto-aleatorio}
+      JWT_EXPIRES_IN: 7d
+      CLIENT_URL: http://localhost:8080
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 524288000
+    ports:
+      - '3001:3001'
+    volumes:
+      - uploads:/app/uploads
+
+  web:
+    build:
+      context: ./web
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - '8080:80'
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { getSocket } from '../lib/socket';
+import { ClockSync, targetPosition, evaluateDrift, type DriftAction } from '../lib/clockSync';
 
 /**
- * Controles mínimos que debe exponer cualquier player (HTML5 o YouTube)
- * para poder participar en la sincronización.
+ * Controles minimos que debe exponer cualquier player (HTML5 o YouTube)
+ * para poder participar en la sincronizacion.
  */
 export interface MediaControls {
   play: () => void;
@@ -18,57 +19,60 @@ export interface SyncPayload {
   serverTime: number;
 }
 
-/** Corrección máxima que se aplica sin avisar al usuario (segundos). */
-const SILENT_DRIFT_CORRECTION = 1.25;
-/** Corrección máxima total (segundos). Por encima, se avisará en la UI. */
-const HARD_DRIFT_LIMIT = 20;
+/** Cada cuanto el anfitrion recuerda donde va el video. */
+const HEARTBEAT_MS = 5000;
 
-export function useMediaSync(options: {
+export interface UseMediaSyncOptions {
   isHost: boolean;
   roomId: string | null;
   controlsRef: React.RefObject<MediaControls | null>;
-  /** Se llama cuando el servidor confirma un salto grande de posición. */
-  onHardDrift?: (target: number, current: number) => void;
-}) {
+  /** Se invoca cuando la correccion fue demasiado grande como para hacerla en silencio. */
+  onHardDrift?: (delta: number, current: number) => void;
+}
+
+export interface MediaSyncApi {
+  /** El anfitrion notifica que empezo a reproducir. */
+  notifyPlay: (position: number) => void;
+  /** El anfitrion notifica que pauso. */
+  notifyPause: (position: number) => void;
+  /** El anfitrion notifica un salto. */
+  notifySeek: (position: number) => void;
+  /** Marca el estado de reproduccion sin provocar re-renders. */
+  setIsPaused: (paused: boolean) => void;
+}
+
+/**
+ * Sincroniza el player con el resto de la sala.
+ *
+ * El anfitrion es la fuente de verdad: emit play/pause/seek y un latido
+ * periodico. Los participantes reciben los eventos y ajustan su player,
+ * corrigiendo la deriva de reloj.
+ */
+export function useMediaSync(options: UseMediaSyncOptions): MediaSyncApi {
   const { isHost, roomId, controlsRef, onHardDrift } = options;
 
-  /**
-   * Diferencia estimada entre el reloj del servidor y el del navegador.
-   * Sin esto, comparar `Date.now()` del cliente contra `serverTime` produce
-   * un desfase constante si los relojes no coinciden.
-   */
-  const clockOffsetRef = useRef(0);
-  const offsetInitialisedRef = useRef(false);
+  // El reloj se conserva entre renders: recalibrarlo en cada render
+  // perderia las muestras y la mediana dejaria de ser util
+  const clockRef = useRef(new ClockSync());
 
-  /**
-   * Permite al latido saber si el player está reproduciendo sin releer el
-   * estado en cada tick (y forzar re-renders innecesarios).
-   */
+  // Referencia al player sin tocar dependencias: si no, el efecto de
+  // escucha se volveria a registrar en cada render del player
   const isPausedRef = useRef(true);
+
+  const onHardDriftRef = useRef(onHardDrift);
+  useEffect(() => {
+    onHardDriftRef.current = onHardDrift;
+  }, [onHardDrift]);
 
   const setIsPaused = useCallback((paused: boolean) => {
     isPausedRef.current = paused;
   }, []);
 
-  /** Convierte un instante del cliente al equivalente del servidor. */
-  const toServerTime = useCallback((clientNow: number) => {
-    return clientNow + clockOffsetRef.current;
-  }, []);
-
-  /** Posición objetivo del player según el estado del servidor. */
-  const targetPosition = useCallback(
-    (payload: { position: number; serverTime: number }) => {
-      const nowOnServer = toServerTime(Date.now());
-      const elapsed = Math.max(0, (nowOnServer - payload.serverTime) / 1000);
-      return payload.position + elapsed;
-    },
-    [toServerTime],
-  );
-
-  // ---- Eventos que el anfitrión envía -------------------------------
+  // ---- Eventos que el anfitrion envia --------------------------------
   const sendEvent = useCallback(
     (type: 'play' | 'pause' | 'seek', position: number) => {
       if (!isHost || !roomId) return;
+
       getSocket().emit('sync:event', {
         roomId,
         type,
@@ -78,69 +82,55 @@ export function useMediaSync(options: {
     [isHost, roomId],
   );
 
-  const notifyPlay = useCallback(
-    (position: number) => sendEvent('play', position),
-    [sendEvent],
-  );
-  const notifyPause = useCallback(
-    (position: number) => sendEvent('pause', position),
-    [sendEvent],
-  );
-  const notifySeek = useCallback(
-    (position: number) => sendEvent('seek', position),
-    [sendEvent],
-  );
+  const notifyPlay = useCallback((p: number) => sendEvent('play', p), [sendEvent]);
+  const notifyPause = useCallback((p: number) => sendEvent('pause', p), [sendEvent]);
+  const notifySeek = useCallback((p: number) => sendEvent('seek', p), [sendEvent]);
 
   // ---- Eventos que el participante recibe ----------------------------
   useEffect(() => {
+    // El anfitrion no aplica correcciones: es el que las genera
+    if (isHost) return;
+
     const socket = getSocket();
+    const clock = clockRef.current;
 
-    const learnClockOffset = (serverTime: number) => {
-      const sample = serverTime - Date.now();
-      if (!offsetInitialisedRef.current) {
-        clockOffsetRef.current = sample;
-        offsetInitialisedRef.current = true;
-      } else {
-        // Suavizado exponencial: ignora picos aislados de latencia
-        clockOffsetRef.current = clockOffsetRef.current * 0.8 + sample * 0.2;
-      }
-    };
-
-    const applyPosition = (position: number, shouldPlay: boolean | null) => {
+    const applyRemoteState = (
+      payload: { position: number; serverTime: number },
+      shouldPlay: boolean | null,
+    ) => {
       const controls = controlsRef.current;
       if (!controls) return;
 
-      const current = controls.getCurrentTime();
-      const drift = position - current;
-      const absDrift = Math.abs(drift);
+      clock.addSample(payload.serverTime);
 
-      // Solo se corrige si la diferencia es apreciable.
-      // Un salto de 100 ms es ruido normal de decodificación.
-      if (absDrift > SILENT_DRIFT_CORRECTION) {
-        if (absDrift > HARD_DRIFT_LIMIT && onHardDrift) {
-          onHardDrift(position, current);
-        }
-        controls.seek(Math.max(0, position));
+      const target = targetPosition(payload, clock);
+      const current = controls.getCurrentTime();
+      const { action, delta } = evaluateDrift(current, target);
+
+      if (action === 'none') {
+        // Aun sin corregir posicion, puede hacer falta cambiar el estado
+        if (shouldPlay === true) controls.play();
+        else if (shouldPlay === false) controls.pause();
+        return;
       }
+
+      if (action === 'warn') {
+        onHardDriftRef.current?.(delta, current);
+      }
+
+      controls.seek(Math.max(0, target));
 
       if (shouldPlay === true) controls.play();
       else if (shouldPlay === false) controls.pause();
     };
 
     const handleSyncEvent = (data: SyncPayload) => {
-      if (isHost) return;
-      learnClockOffset(data.serverTime);
-      applyPosition(targetPosition(data), data.type !== 'pause');
+      // 'pause' significa que hay que detener; play y seek, que no
+      applyRemoteState(data, data.type !== 'pause');
     };
 
-    const handleHeartbeat = (data: {
-      position: number;
-      playing: boolean;
-      serverTime: number;
-    }) => {
-      if (isHost) return;
-      learnClockOffset(data.serverTime);
-      applyPosition(targetPosition(data), data.playing);
+    const handleHeartbeat = (data: { position: number; playing: boolean; serverTime: number }) => {
+      applyRemoteState(data, data.playing);
     };
 
     socket.on('sync:event', handleSyncEvent);
@@ -149,10 +139,13 @@ export function useMediaSync(options: {
     return () => {
       socket.off('sync:event', handleSyncEvent);
       socket.off('sync:heartbeat', handleHeartbeat);
+      // Al salir de la sala el reloj ya no es valido: la proxima sala
+      // tendria otro anfitrion y otro desfase
+      clock.reset();
     };
-  }, [isHost, controlsRef, targetPosition, onHardDrift]);
+  }, [isHost, controlsRef]);
 
-  // ---- Latido periódico del anfitrión --------------------------------
+  // ---- Latido periodico del anfitrion --------------------------------
   useEffect(() => {
     if (!isHost || !roomId) return;
 
@@ -165,10 +158,12 @@ export function useMediaSync(options: {
         position: controls.getCurrentTime(),
         playing: !isPausedRef.current,
       });
-    }, 5000);
+    }, HEARTBEAT_MS);
 
     return () => clearInterval(interval);
   }, [isHost, roomId, controlsRef]);
 
   return { notifyPlay, notifyPause, notifySeek, setIsPaused };
 }
+
+export type { DriftAction };

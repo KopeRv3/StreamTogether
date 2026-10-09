@@ -5,12 +5,15 @@ import { handleSyncEvents } from './syncHandlers';
 import { handleChatEvents } from './chatHandlers';
 
 // In-memory room state for sync
-export const roomStates = new Map<string, {
-  position: number;
-  playing: boolean;
-  timestamp: number;
-  videoId: string | null;
-}>();
+export const roomStates = new Map<
+  string,
+  {
+    position: number;
+    playing: boolean;
+    timestamp: number;
+    videoId: string | null;
+  }
+>();
 
 // Track which room each socket is in
 export const socketRooms = new Map<string, string>();

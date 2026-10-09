@@ -51,7 +51,9 @@ export function Register() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">VerPelisJuntos</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 bg-clip-text text-transparent">
+            VerPelisJuntos
+          </h1>
           <p className="text-gray-600 mt-2">Crea tu cuenta y empieza a ver con amigos</p>
         </div>
 

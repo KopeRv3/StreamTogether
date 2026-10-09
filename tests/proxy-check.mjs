@@ -52,24 +52,57 @@ async function main() {
   console.log('\n2. Conexion real de socket.io-client a traves del proxy');
   console.log('   (esto exige el upgrade a WebSocket: valida ws:true)');
 
-  // Necesitamos un token valido: se registra un usuario temporal
+  // Necesitamos un token valido. El endpoint de registro tiene un limitador
+  // estricto (10 por 15 min), asi que primero probamos con un login: si hay
+  // un usuario sembrado, el login tiene su propio cupo y suele estar libre.
   let token = null;
+
   try {
-    const stamp = Date.now();
-    const res = await fetch(`${VITE}/api/auth/register`, {
+    const res = await fetch(`${VITE}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: `proxy${stamp}@example.com`,
-        username: `proxy${stamp}`.slice(0, 28),
-        password: 'contrasena123',
-      }),
+      body: JSON.stringify({ email: 'ana@demo.local', password: 'demo1234' }),
     });
     const data = await res.json();
-    token = data.token;
-    ok('se pudo registrar un usuario via el proxy', !!token, JSON.stringify(data).slice(0, 90));
+    token = data.token ?? null;
+    ok('se obtuvo un token (usuario de la semilla)', !!token, JSON.stringify(data).slice(0, 90));
   } catch (err) {
-    ok('se pudo registrar un usuario via el proxy', false, err.message);
+    ok('se obtuvo un token (usuario de la semilla)', false, err.message);
+  }
+
+  // Si el login no funciono, se intenta registrar uno temporal
+  if (!token) {
+    try {
+      const stamp = Date.now();
+      const res = await fetch(`${VITE}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: `proxy${stamp}@example.com`,
+          username: `proxy${stamp}`.slice(0, 28),
+          password: 'contrasena123',
+        }),
+      });
+      const data = await res.json();
+      token = data.token ?? null;
+      ok(
+        'se registro un usuario temporal via el proxy',
+        !!token,
+        JSON.stringify(data).slice(0, 90),
+      );
+    } catch (err) {
+      ok('se registro un usuario temporal via el proxy', false, err.message);
+    }
+  }
+
+  if (!token) {
+    console.log('\n  No se pudo obtener un token (limitador activo).');
+    console.log('  Reinicia el backend con un estado limpio antes de esta prueba.');
+    console.log('  Para eso:  npm run test:all\n');
+    console.log('='.repeat(56));
+    console.log('  PROXY: sin token, no se puede probar el WebSocket');
+    console.log('='.repeat(56));
+    process.exit(1);
   }
 
   if (token) {
@@ -101,14 +134,14 @@ async function main() {
         });
       });
 
-      ok(
-        `conexion WebSocket ${label}`,
-        connected.ok,
-        connected.ok ? '' : connected.reason,
-      );
+      ok(`conexion WebSocket ${label}`, connected.ok, connected.ok ? '' : connected.reason);
 
       if (connected.ok) {
-        ok(`  usa transporte websocket (no polling)`, connected.transport === 'websocket', connected.transport);
+        ok(
+          `  usa transporte websocket (no polling)`,
+          connected.transport === 'websocket',
+          connected.transport,
+        );
       }
     }
   }

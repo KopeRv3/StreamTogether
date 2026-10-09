@@ -1,7 +1,21 @@
-import { Router, Response } from 'express';
+import { Router } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimit';
-import { getAllVideos, createVideo, createYouTubeVideo, deleteVideo } from '../services/videoService';
+import {
+  getAllVideos,
+  createVideo,
+  createYouTubeVideo,
+  deleteVideo,
+} from '../services/videoService';
+import { extractYouTubeId } from '../utils/youtube';
+import {
+  validateTitle,
+  validateDescription,
+  validateDuration,
+  assert,
+  LIMITS,
+} from '../utils/validation';
+import { asyncHandler } from '../utils/asyncHandler';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -20,9 +34,12 @@ const storage = multer.diskStorage({
     cb(null, path.resolve(config.uploadDir));
   },
   filename: (_req, file, cb) => {
-    // UUID + extensión sanitizada: nunca usamos el nombre original del archivo
-    const ext = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '');
-    cb(null, `${uuidv4()}${ALLOWED_EXTENSIONS.includes(ext) ? ext : '.mp4'}`);
+    // UUID + extensión sanitizada: nunca usamos el nombre original
+    const raw = path
+      .extname(file.originalname)
+      .toLowerCase()
+      .replace(/[^a-z0-9.]/g, '');
+    cb(null, `${uuidv4()}${ALLOWED_EXTENSIONS.includes(raw) ? raw : '.mp4'}`);
   },
 });
 
@@ -39,110 +56,89 @@ const upload = multer({
   },
 });
 
-// Subir archivos es caro: límite más estricto que el resto de la API
+// Subir archivos es costoso: límite más estricto que el resto de la API
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
   message: 'Demasiadas subidas. Intenta de nuevo en un rato.',
 });
 
-// GET /api/videos - List all videos
-videosRouter.get('/', authMiddleware, async (_req: AuthRequest, res: Response) => {
-  try {
+// GET /api/videos - Listar la biblioteca de videos
+videosRouter.get(
+  '/',
+  authMiddleware,
+  asyncHandler(async (_req, res) => {
     const videos = await getAllVideos();
     res.json({ videos });
-  } catch (error) {
-    if (error instanceof Error) {
-      res.status(500).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
-  }
-});
+  }),
+);
 
-// POST /api/videos/youtube - Register a YouTube video from its URL
-videosRouter.post('/youtube', authMiddleware, uploadLimiter, async (req: AuthRequest, res: Response) => {
-  try {
-    const { url, title, description, duration } = req.body ?? {};
+// POST /api/videos/youtube - Registrar un video de YouTube a partir de su URL
+videosRouter.post(
+  '/youtube',
+  authMiddleware,
+  uploadLimiter,
+  asyncHandler(async (req: AuthRequest, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'La URL de YouTube es requerida' });
-    }
+    assert(
+      typeof body.url === 'string' && body.url.trim(),
+      'La URL de YouTube es requerida',
+      'URL_REQUERIDA',
+    );
+
+    const url = body.url.trim();
+    assert(url.length <= LIMITS.urlMax, 'La URL es demasiado larga', 'URL_LARGA');
+
+    // Se valida aquí y no solo en el servicio para poder normalizar antes
+    const youtubeId = extractYouTubeId(url);
+    assert(
+      youtubeId,
+      'URL de YouTube no válida. Usa un enlace de watch, youtu.be, embed o shorts.',
+      'URL_INVALIDA',
+    );
 
     const video = await createYouTubeVideo(
-      url.trim().slice(0, 500),
-      typeof title === 'string' ? title : null,
-      typeof description === 'string' ? description : null,
+      url,
+      validateTitle(body.title),
+      validateDescription(body.description),
       req.userId!,
-      typeof duration === 'number' ? duration : parseInt(String(duration ?? '0'), 10) || 0,
     );
 
     res.status(201).json({ video });
-  } catch (error) {
-    if (error instanceof Error) {
-      const status = (error as { statusCode?: number }).statusCode ?? 400;
-      res.status(status).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
-  }
-});
+  }),
+);
 
-// POST /api/videos - Upload a new video file
+// POST /api/videos - Subir un archivo de video
 videosRouter.post(
   '/',
   authMiddleware,
   uploadLimiter,
   upload.single('video'),
-  async (req: AuthRequest, res: Response) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'Archivo de video requerido' });
-      }
-
-      const { title, description, duration } = req.body;
-
-      if (!title || !title.trim()) {
-        return res.status(400).json({ error: 'El título es requerido' });
-      }
-
-      const parsedDuration = parseInt(String(duration ?? ''), 10);
-
-      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
-        return res.status(400).json({ error: 'La duración debe ser un número positivo' });
-      }
-
-      const video = await createVideo(
-        req.file,
-        title.trim().slice(0, 200),
-        description?.trim() ? description.trim().slice(0, 2000) : null,
-        parsedDuration,
-        req.userId!,
-      );
-
-      res.status(201).json({ video });
-    } catch (error) {
-      if (error instanceof Error) {
-        const status = (error as { statusCode?: number }).statusCode ?? 400;
-        res.status(status).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Error interno' });
-      }
+  asyncHandler(async (req: AuthRequest, res) => {
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: 'Archivo de video requerido' });
+      return;
     }
-  },
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const title = validateTitle(body.title, true);
+    const description = validateDescription(body.description);
+    const duration = validateDuration(body.duration);
+
+    const video = await createVideo(file, title!, description, duration, req.userId!);
+    res.status(201).json({ video });
+  }),
 );
 
-// DELETE /api/videos/:id - Delete a video (owner only)
-videosRouter.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
+// DELETE /api/videos/:id - Eliminar un video (solo su dueño)
+videosRouter.delete(
+  '/:id',
+  authMiddleware,
+  asyncHandler(async (req: AuthRequest, res) => {
     await deleteVideo(req.params.id, req.userId!);
     res.json({ success: true });
-  } catch (error) {
-    if (error instanceof Error) {
-      const status = (error as { statusCode?: number }).statusCode ?? 500;
-      res.status(status).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Error interno' });
-    }
-  }
-});
+  }),
+);

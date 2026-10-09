@@ -3,12 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRoomStore } from '../stores/roomStore';
 import { api } from '../lib/api';
-import {
-  connectSocket,
-  disconnectSocket,
-  getSocket,
-  setReconnectHandler,
-} from '../lib/socket';
+import { connectSocket, disconnectSocket, getSocket, setReconnectHandler } from '../lib/socket';
 import { VideoPlayer, type VideoPlayerRef } from '../components/room/VideoPlayer';
 import { YouTubePlayer, type YouTubePlayerRef } from '../components/room/YouTubePlayer';
 import { Chat } from '../components/room/Chat';
@@ -33,15 +28,8 @@ export function Room() {
   const [notice, setNotice] = useState('');
 
   const { user } = useAuthStore();
-  const {
-    currentRoom,
-    setCurrentRoom,
-    setParticipants,
-    setMessages,
-    isHost,
-    setIsHost,
-    reset,
-  } = useRoomStore();
+  const { currentRoom, setCurrentRoom, setParticipants, setMessages, isHost, setIsHost, reset } =
+    useRoomStore();
 
   const isYouTube = currentRoom?.video?.source === 'youtube';
 
@@ -100,7 +88,9 @@ export function Room() {
       disconnectSocket();
       reset();
     };
-  }, [roomId, loadRoom]);
+    // Las acciones de Zustand son referencias estables, asi que incluirlas
+    // no provoca re-ejecucion del efecto.
+  }, [roomId, loadRoom, reset]);
 
   // --- Eventos del socket ----------------------------------------------
   useEffect(() => {
@@ -126,11 +116,7 @@ export function Room() {
         .catch(() => undefined);
     };
 
-    const handleSyncState = (state: {
-      position: number;
-      playing: boolean;
-      timestamp: number;
-    }) => {
+    const handleSyncState = (state: { position: number; playing: boolean; timestamp: number }) => {
       const player = playerRef.current;
       if (!player) return;
       player.seek(state.position);
@@ -279,9 +265,7 @@ export function Room() {
       </header>
 
       {notice && (
-        <div className="bg-amber-500 text-gray-900 text-sm text-center py-2 px-4">
-          {notice}
-        </div>
+        <div className="bg-amber-500 text-gray-900 text-sm text-center py-2 px-4">{notice}</div>
       )}
 
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 flex flex-col lg:flex-row gap-4">
@@ -369,9 +353,7 @@ export function Room() {
           ) : videos.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500 mb-2">No hay videos disponibles</p>
-              <p className="text-gray-400 text-sm">
-                Agrega uno desde la página principal
-              </p>
+              <p className="text-gray-400 text-sm">Agrega uno desde la página principal</p>
             </div>
           ) : (
             <>

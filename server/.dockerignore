@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+*.md
+*.log
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+uploads
+prisma/dev.db
+prisma/dev.db-journal
+tests

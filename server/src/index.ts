@@ -9,7 +9,7 @@ import { config } from './config';
 import { authRouter } from './routes/auth';
 import { roomsRouter } from './routes/rooms';
 import { videosRouter } from './routes/videos';
-import { errorHandler } from './middleware/errorHandler';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { apiLimiter } from './middleware/rateLimit';
 import { setupSocketHandlers } from './sockets';
 
@@ -74,11 +74,9 @@ app.get('/api/health', (_req, res) => {
 });
 
 // 404 para rutas de API inexistentes (debe ir antes del error handler)
-app.use('/api', (_req, res) => {
-  res.status(404).json({ error: 'Ruta no encontrada' });
-});
+app.use('/api', notFoundHandler);
 
-// Error handling
+// Error handling: siempre el ultimo
 app.use(errorHandler);
 
 // Socket.IO
@@ -98,15 +96,30 @@ const server = httpServer.listen(config.port, () => {
   console.log(`[server] origenes permitidos: ${allowedOrigins.join(', ') || 'ninguno'}`);
 });
 
+// Un throw asincrono sin capturar tumba el proceso entero. Este handler
+// registra el error, deja constancia y apaga con codigo distinto de cero
+// para que el orquestador reinicie el contenedor.
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] promesa rechazada sin manejar:', reason);
+  shutdown('unhandledRejection');
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[fatal] excepcion sin capturar:', error);
+  shutdown('uncaughtException');
+});
+
 // Apagado ordenado: cierra sockets y servidor antes de salir
 function shutdown(signal: string) {
   console.log(`[server] ${signal} recibido, cerrando...`);
+
   io.close(() => {
     server.close(() => {
       console.log('[server] cerrado limpiamente');
       process.exit(0);
     });
   });
+
   // Red de seguridad por si algo se queda colgado
   setTimeout(() => process.exit(1), 8000).unref();
 }

@@ -100,18 +100,14 @@ export function Chat() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {messages.length === 0 && (
-          <p className="text-center text-gray-500 text-sm py-4">
-            No hay mensajes aún. ¡Saluda!
-          </p>
+          <p className="text-center text-gray-500 text-sm py-4">No hay mensajes aún. ¡Saluda!</p>
         )}
         {messages.map((msg) => (
           <div key={msg.id} className="flex gap-2">
             <Avatar username={msg.user.username} avatarUrl={msg.user.avatarUrl} size="sm" />
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-2">
-                <span className="font-medium text-sm text-gray-900">
-                  {msg.user.username}
-                </span>
+                <span className="font-medium text-sm text-gray-900">{msg.user.username}</span>
                 <span className="text-xs text-gray-500">{formatTime(msg.createdAt)}</span>
               </div>
               <p className="text-sm text-gray-700 break-words">{msg.content}</p>
