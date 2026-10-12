@@ -1,0 +1,27 @@
+# Los archivos de shell deben guardarse con LF. Si llevan CR (CRLF), /bin/sh
+# en Linux lee un '\r' pegado a cada comando y el script falla al arrancar.
+# En Windows los editores suelen guardar con CRLF, asi que esto es obligatorio.
+*.sh text eol=lf
+
+# Docker y CI tambien deben interpretarse bien en Linux
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# El codigo fuente que se compila: LF para que los hashes sean estables
+# entre Windows y Linux
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.prisma text eol=lf
+*.sql text eol=lf
+
+# Los archivos de texto que el usuario escribe, no se tocan
+*.md text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf

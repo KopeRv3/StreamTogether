@@ -13,23 +13,19 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
     "db:seed": "tsx src/db/seed.ts",
-
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-
     "setup": "npm run db:generate && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
@@ -41,6 +37,7 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "prisma": "^5.22.0",
     "socket.io": "^4.8.1",
     "uuid": "^10.0.0",
     "zod": "^3.24.1"
@@ -57,7 +54,6 @@
     "@typescript-eslint/parser": "^8.18.1",
     "@vitest/coverage-v8": "^2.1.8",
     "eslint": "^8.57.1",
-    "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
