@@ -61,10 +61,13 @@ COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # `uploads` debe existir antes de que arranque el servidor.
-# Se da permiso de escritura a node porque las migraciones de Prisma
-# necesitan escribir en node_modules/.prisma
+#
+# Todo /app pasa a ser del usuario node porque `prisma migrate deploy` escribe
+# en node_modules/@prisma/engines al resolver el motor: si esa carpeta es de
+# root, falla con "Can't write to /app/node_modules/@prisma/engines" y el
+# contenedor muere antes de abrir el puerto.
 RUN mkdir -p /app/uploads \
-    && chown -R node:node /app/uploads /app/node_modules/.prisma
+    && chown -R node:node /app
 
 USER node
 
