@@ -79,9 +79,27 @@ function origenPermitido(origin: string | undefined): boolean {
   return !esProduccion && esOrigenLocal(origin);
 }
 
+/**
+ * Socket.IO delega en el paquete `cors`, y ese paquete, cuando `origin` es
+ * una funcion, la llama como `origin(origin, callback)` y espera que el
+ * callback reciba la decision. Si solo se devuelve un booleano el callback
+ * nunca se invoca y la peticion queda colgada indefinidamente: ni respuesta
+ * ni error. Por eso aqui se envuelve la comprobacion en un callback.
+ *
+ * Pasar `false` no es un error de CORS: `cors` lo interpreta como "no
+ * permitido", omite la cabecera Access-Control-Allow-Origin y deja que el
+ * navegador bloquee la respuesta, que es justo lo que ya hacia la API.
+ */
+function origenPermitidoCors(
+  origin: string | undefined,
+  callback: (err: Error | null, permitido?: boolean) => void,
+): void {
+  callback(null, origenPermitido(origin));
+}
+
 const io = new Server(httpServer, {
   cors: {
-    origin: origenPermitido,
+    origin: origenPermitidoCors,
     credentials: true,
   },
   // En redes moviles el ping por defecto es corto y la conexion se cae
