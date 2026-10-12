@@ -23,6 +23,10 @@
     "start": "npm --prefix server run start",
     "preview": "npm --prefix web run preview",
 
+    "start:backend": "npm run install:backend && npm --prefix server run build && npm --prefix server run start",
+    "install:backend": "npm --prefix server ci",
+    "migrate:backend": "npm --prefix server run db:deploy",
+
     "db:generate": "npm --prefix server run db:generate",
     "db:migrate": "npm --prefix server run db:migrate",
     "db:deploy": "npm --prefix server run db:deploy",
