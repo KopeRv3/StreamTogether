@@ -27,13 +27,29 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json tsconfig.json ./
 COPY prisma ./prisma
 COPY src ./src
+COPY scripts ./scripts
 
 # El cliente de Prisma se genera dentro de la imagen, no en el host
 RUN npx prisma generate
 RUN npm run build
 
-# Se borran las dependencias de desarrollo: la imagen final no las necesita
+# Se borran las dependencias de desarrollo para adelgazar la imagen.
 RUN npm prune --omit=dev
+
+# IMPORTANTE: se regenera el cliente DESPUES de podar.
+#
+# Podar puede dejar al cliente apuntando a un motor que ya no esta, y al
+# arrancar el servidor falla con:
+#   PrismaClientInitializationError: Prisma Client could not locate the
+#   Query Engine for runtime "debian-openssl-3.0.x"
+#
+# Regenerando aqui se resuelve el motor para la plataforma final y se
+# escribe sobre un arbol que ya es definitivo.
+RUN npx prisma generate
+
+# Verificacion en tiempo de build: si el motor falta, falla aqui y no cuando
+# el contenedor ya esta desplegandose. Antes esto solo se descubria en vivo.
+RUN node scripts/verificar-prisma.js
 
 # ---------- Etapa 3: ejecucion ----------
 FROM node:22-slim AS runtime
