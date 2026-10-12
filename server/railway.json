@@ -1,0 +1,30 @@
+# Railway — backend (StreamTogether)
+#
+# Railway lee el railway.json del directorio que despliegas. Este archivo
+# acompaña a server/ y se usa cuando el despliegue se hace desde ahi:
+#
+#   railway up --service api server
+#
+# Por que el backend se despliega aparte y no desde la raiz:
+# Nixpacks detecta Node leyendo el package.json del directorio de despliegue.
+# En la raiz el package.json es el orquestador del monorepo y su script
+# `build` compila el frontend tambien, donde no hay dependencias de servidor
+# instaladas. El resultado era:
+#
+#   [ERRO] sh: 1: prisma: not found
+#
+# Desplegando desde server/, Nixpacks ve el proyecto real del backend.
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm run build"
+  },
+  "deploy": {
+    "startCommand": "npm run db:deploy && npm start",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 180,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5
+  }
+}
