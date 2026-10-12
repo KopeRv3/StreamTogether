@@ -1,10 +1,17 @@
 # Despliegue en Render (https://render.com)
 #
 # Sube este repositorio en Render > New > Blueprint y apunta a este archivo.
-# Render creara el backend y la base de datos Postgres a la vez.
 #
-# IMPORTANTE: el plan gratuito apaga el servicio tras 15 minutos sin uso.
-# La primera visita despues de eso tarda ~1 minuto en despertar.
+# IMPORTANTE: se usa el runtime NATIVO de Node, no Docker.
+#
+# Con Docker el despliegue fallo cinco veces seguidas por detalles que solo
+# aparecen dentro de la imagen: Alpine sin OpenSSL, permisos de escritura
+# como usuario node, y el motor de Prisma desapareciendo al podar. El runtime
+# nativo de Render ya es Ubuntu con glibc y OpenSSL correctos, asi que esa
+# clase de problemas no existe.
+#
+# El Dockerfile se conserva en el repositorio para quien quiera usarlo, pero
+# Render no lo usa.
 
 databases:
   - name: streamtogether-db
@@ -16,11 +23,20 @@ databases:
 services:
   - type: web
     name: streamtogether-api
-    runtime: docker
-    dockerfilePath: ./server/Dockerfile
-    dockerContext: ./server
+    runtime: node
     plan: free
+    rootDir: server
+
+    # installDependencies: npm ci
+    buildCommand: npm run build
+
+    # Las migraciones se aplican antes de cada despliegue. `migrate deploy`
+    # solo aplica lo declarado en prisma/migrations y nunca borra datos.
+    preDeployCommand: npx prisma migrate deploy
+
+    startCommand: npm start
     healthCheckPath: /api/health
+
     envVars:
       - key: NODE_ENV
         value: production
@@ -32,8 +48,8 @@ services:
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 30d
-      # OJO: cambiar por el dominio real del frontend en Vercel.
-      # Varios origenes van separados por coma.
+      # OJO: poner aqui el dominio del frontend en Vercel.
+      # Varios origenes separados por coma.
       - key: CLIENT_URL
         sync: false
       - key: UPLOAD_DIR
