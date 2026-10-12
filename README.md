@@ -4,6 +4,21 @@ Aplicación de streaming social: dos o más personas ven el **mismo video al mis
 
 Funciona con **videos de YouTube** (pegas la URL y listo) y con **archivos locales** (MP4, WebM, MOV). Ambos se reproducen sincronizados: el anfitrión controla la reproducción y todos los demás ven exactamente lo mismo.
 
+## Probar la app
+
+La aplicación está desplegada y abierta al público:
+
+### ▶ [Abrir StreamTogether](https://web-ochre-mu-92.vercel.app)
+
+Entra con solo un nombre de usuario — sin correo ni contraseña —, crea una sala y comparte el código de 6 caracteres con quien quieras ver el video.
+
+| | |
+|---|---|
+| **App** (frontend en Vercel) | https://web-ochre-mu-92.vercel.app |
+| **API** (backend en Railway) | https://api-production-95bf.up.railway.app/api/health |
+
+> Si el backend estuvo inactivo, la primera petición puede tardar unos segundos en responder.
+
 ## Cómo funciona
 
 ```
