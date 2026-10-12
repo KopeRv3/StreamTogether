@@ -5,8 +5,17 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:3001';
 
 export default defineConfig({
   plugins: [react()],
+
   server: {
     port: 5173,
+
+    /**
+     * `host: true` hace que Vite escuche en 0.0.0.0 y no solo en localhost.
+     * Sin esto, abrir http://192.168.x.x:5173 desde el celular falla porque
+     * el servidor no acepta conexiones de la red local.
+     */
+    host: true,
+
     proxy: {
       // API REST
       '/api': {

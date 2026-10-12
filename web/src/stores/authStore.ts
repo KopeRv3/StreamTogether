@@ -9,16 +9,34 @@ interface AuthState {
   logout: () => void;
 }
 
+const TOKEN_KEY = 'streamtogether:token';
+const USER_KEY = 'streamtogether:user';
+
+function readUser(): User | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+const initialToken = localStorage.getItem(TOKEN_KEY);
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  token: localStorage.getItem('token'),
-  isAuthenticated: !!localStorage.getItem('token'),
+  user: readUser(),
+  token: initialToken,
+  isAuthenticated: !!initialToken,
+
   setAuth: (user, token) => {
-    localStorage.setItem('token', token);
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
     set({ user, token, isAuthenticated: true });
   },
+
   logout: () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
     set({ user: null, token: null, isAuthenticated: false });
   },
 }));

@@ -38,3 +38,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+# Postgres
+*.sql.gz
+pgdata/
+

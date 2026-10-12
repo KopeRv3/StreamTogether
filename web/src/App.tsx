@@ -1,19 +1,22 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
+import { Enter } from './pages/Enter';
 import { Home } from './pages/Home';
 import { Room } from './pages/Room';
-import { Upload } from './pages/Upload';
+import { Library } from './pages/Library';
 
+/**
+ * Basta con tener un token en el navegador para entrar.
+ * El token se emite al escribir un nombre, sin contraseña.
+ */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/entrar" replace />;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
-  return isAuthenticated ? <Navigate to="/" /> : <>{children}</>;
+  return isAuthenticated ? <Navigate to="/" replace /> : <>{children}</>;
 }
 
 export default function App() {
@@ -21,18 +24,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route
-          path="/login"
+          path="/entrar"
           element={
             <PublicRoute>
-              <Login />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicRoute>
-              <Register />
+              <Enter />
             </PublicRoute>
           }
         />
@@ -45,7 +40,7 @@ export default function App() {
           }
         />
         <Route
-          path="/room/:roomId"
+          path="/sala/:roomId"
           element={
             <PrivateRoute>
               <Room />
@@ -53,14 +48,19 @@ export default function App() {
           }
         />
         <Route
-          path="/upload"
+          path="/biblioteca"
           element={
             <PrivateRoute>
-              <Upload />
+              <Library />
             </PrivateRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* Rutas viejas por si alguien tiene un enlace guardado */}
+        <Route path="/login" element={<Navigate to="/entrar" replace />} />
+        <Route path="/register" element={<Navigate to="/entrar" replace />} />
+        <Route path="/upload" element={<Navigate to="/biblioteca" replace />} />
+        <Route path="/room/:roomId" element={<Navigate to="/sala/:roomId" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

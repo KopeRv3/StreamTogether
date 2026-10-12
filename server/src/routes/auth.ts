@@ -1,47 +1,39 @@
 import { Router } from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { authLimiter } from '../middleware/rateLimit';
-import { registerUser, loginUser, getUserById } from '../services/authService';
-import { validateEmail, validateUsername, validatePassword } from '../utils/validation';
+import { rateLimit } from '../middleware/rateLimit';
+import { enterAsGuest, getUserById } from '../services/authService';
+import { validateUsername } from '../utils/validation';
 import { asyncHandler } from '../utils/asyncHandler';
 
 export const authRouter = Router();
 
-// POST /api/auth/register
+/**
+ * Entrar con un nombre de usuario, sin correo ni contraseña.
+ *
+ * El límite es más alto que el de antes porque ya no hay contraseña que
+ * adivinar: crear identidades es barato y no hay nada que fuerza bruta.
+ */
+const guestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: 'Demasiadas entradas seguidas. Espera un momento.',
+});
+
+// POST /api/auth/guest - Entrar con un nombre
 authRouter.post(
-  '/register',
-  authLimiter,
+  '/guest',
+  guestLimiter,
   asyncHandler(async (req: AuthRequest, res) => {
-    const { email, username, password } = (req.body ?? {}) as Record<string, unknown>;
+    const { username } = (req.body ?? {}) as Record<string, unknown>;
 
-    // Cada validador lanza AppError con el codigo HTTP y el mensaje en espanol
-    const cleanEmail = validateEmail(email);
-    const cleanUsername = validateUsername(username);
-    const cleanPassword = validatePassword(password);
+    const clean = validateUsername(username);
+    const result = await enterAsGuest(clean);
 
-    const result = await registerUser(cleanEmail, cleanUsername, cleanPassword);
-    res.status(201).json(result);
-  }),
-);
-
-// POST /api/auth/login
-authRouter.post(
-  '/login',
-  authLimiter,
-  asyncHandler(async (req: AuthRequest, res) => {
-    const { email, password } = (req.body ?? {}) as Record<string, unknown>;
-
-    const cleanEmail = validateEmail(email);
-    // No se valida la longitud del password: un login fallido con cualquier
-    // contrasena debe dar el mismo 401, sin revelar la politica de contrasenas
-    const cleanPassword = typeof password === 'string' ? password : '';
-
-    const result = await loginUser(cleanEmail, cleanPassword);
     res.json(result);
   }),
 );
 
-// GET /api/auth/me
+// GET /api/auth/me - Quién soy en esta sesión
 authRouter.get(
   '/me',
   authMiddleware,

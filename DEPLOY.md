@@ -1,166 +1,127 @@
-# Guía de despliegue
+# Despliegue del frontend en Vercel
+#
+#   vercel --cwd web
+#
+# En el panel de Vercel: Root Directory = web, y definir VITE_API_URL con
+# el dominio del backend en Render.
 
-## Por qué el frontend y el backend van a partes
+## Plan
 
-| | Requisitos | Vercel sirve? |
+| Parte | Servicio | Motivo |
 |---|---|---|
-| Frontend | Archivos estáticos | ✅ Sí |
-| Backend | Express con estado | ❌ No |
-| WebSockets | Servidor TCP persistente | ❌ No |
-| SQLite | Disco persistente | ❌ No (efímero) |
-| Peticiones | Hasta 500 MB | ❌ No (~4.5 MB) |
+| `web/` | **Vercel** (gratis) | Build estatico, ideal |
+| `server/` | **Render** (gratis) | Necesita WebSockets y servidor con estado |
+| Base de datos | **Postgres de Render** | SQLite no sobrevive a un reinicio |
 
-Vercel ejecuta funciones sin estado: cada invocación puede morir en cualquier momento y no puede mantener un socket abierto. Por eso el backend necesita un servicio con servidor real.
-
----
-
-## Plan recomendado
-
-```
-web/    →  Vercel                    (frontend estático, gratis)
-server/ →  Railway / Render / Fly.io  (Express + Socket.IO)
-DB      →  Neon o Supabase           (Postgres, gratis)
-videos  →  Cloudflare R2 / Supabase   (solo si mantienes la subida de archivos)
-```
+Vercel no puede ejecutar el backend: sus funciones son sin estado, no
+admiten WebSockets y el disco es efimero.
 
 ---
 
-## 1. Base de datos
+## 1. Backend en Render
 
-1. Crea una cuenta en [Neon](https://neon.tech) o Supabase y una base Postgres.
-2. Copia la cadena de conexión (`postgresql://...`).
-3. En `server/prisma/schema.prisma` cambia el proveedor:
+1. Sube el repositorio a GitHub (ya está).
+2. En Render: **New** → **Blueprint** → apunta a `render.yaml`.
+3. Render crea el servicio y la base de datos a la vez.
+4. Anota el dominio del backend: `https://streamtogether-api.onrender.com`.
+5. En **Environment** del servicio, pon `CLIENT_URL` con el dominio del frontend.
 
-```prisma
-datasource db {
-  provider = "postgresql"   // antes: sqlite
-  url      = env("DATABASE_URL")
-}
-```
+> **Plan gratuito:** el servicio se duerme tras 15 minutos sin tráfico. La
+> siguiente visita tarda ~1 minuto en despertar. Las salas abiertas se pierden.
 
-4. En `server/.env`:
+---
+
+## 2. Frontend en Vercel
+
+Opción A — desde la terminal:
 
 ```bash
-DATABASE_URL="postgresql://usuario:password@host/db?sslmode=require"
+npm i -g vercel
+vercel login
+vercel --cwd web
 ```
 
-5. Aplica el esquema:
+Opción B — desde el panel:
 
-```bash
-cd server
-npx prisma generate
-npx prisma migrate deploy
-```
+1. **Add New** → **Project** → importa el repositorio.
+2. **Root Directory**: `web`
+3. Framework preset: **Vite**
+4. Variable de entorno: `VITE_API_URL=https://streamtogether-api.onrender.com`
+5. **Deploy**
 
 ---
 
-## 2. Backend
+## 3. Ajustar CORS
 
-### Railway
-
-1. `New Project` → `Deploy from GitHub Repo` → selecciona el repositorio.
-2. Railway detecta el monorepo; configura el directorio como `server`.
-3. Build command: `npm ci && npx prisma generate && npx prisma migrate deploy`
-4. Start command: `npm start`
-5. Variables de entorno:
-
-```bash
-NODE_ENV=production
-PORT=3001                      # Railway lo inyecta, no lo fijes
-DATABASE_URL=postgresql://...
-JWT_SECRET=<64+ caracteres aleatorios>
-JWT_EXPIRES_IN=7d
-CLIENT_URL=https://tu-frontend.vercel.app
-UPLOAD_DIR=/tmp/uploads        # disco temporal del contenedor
-MAX_FILE_SIZE=524288000
-```
-
-6. Railway asigna un dominio: `https://tu-backend.up.railway.app`.
-
-> **Sobre `UPLOAD_DIR`:** si lo dejas en `/tmp`, los archivos se pierden en cada reinicio. Para producción usa almacenamiento externo (S3/R2) o desactiva la subida de archivos y quédate solo con YouTube.
-
-### Render
-
-Alternativa con plan gratuito (se duerme tras 15 min de inactividad, lo que corta las salas).
-
----
-
-## 3. Frontend en Vercel
-
-1. `Add New` → `Project` → importa el repositorio.
-2. Configura el **Root Directory** como `web`.
-3. Framework preset: Vite.
-4. Variables de entorno:
-
-```bash
-VITE_API_URL=https://tu-backend.up.railway.app
-```
-
-5. Deploy.
-
----
-
-## 4. Configurar CORS
-
-`server/.env` debe incluir **exactamente** el dominio final del frontend:
+`server/.env` (en Render: Environment) debe tener exactamente el dominio
+del frontend:
 
 ```bash
 CLIENT_URL=https://tu-frontend.vercel.app
 ```
 
-Para varios dominios (producción + preview) separados por coma:
+Varios dominios (producción + previews) separados por coma:
 
 ```bash
-CLIENT_URL=https://tu-frontend.vercel.app,https://tu-frontend-git-main-equipo.vercel.app
+CLIENT_URL=https://tu-frontend.vercel.app,https://tu-frontend-git-main.vercel.app
 ```
 
-Si no coincide con el dominio correcto verás `Origen no permitido por CORS` en la consola del navegador.
+Si no coincide, el navegador mostrará `Origen no permitido por CORS`.
 
 ---
 
-## 5. Lista de verificación
+## 4. Comprobar
 
-Antes de abrirlo al público:
-
-- [ ] `JWT_SECRET` es aleatorio y **distinto** del de ejemplo
-- [ ] `NODE_ENV=production`
-- [ ] `CLIENT_URL` apunta a tu dominio real
-- [ ] El esquema de Prisma está en Postgres, no en SQLite
-- [ ] `VITE_API_URL` apunta al backend
-- [ ] El backend es accesible por HTTPS
-- [ ] `npm test` pasa completo
+| Qué | Dónde |
+|---|---|
+| Backend vivo | `https://tu-backend.onrender.com/api/health` |
+| App | `https://tu-frontend.vercel.app` |
 
 ---
 
 ## Problemas frecuentes
 
 **`Origen no permitido por CORS`**
-`CLIENT_URL` no coincide con el dominio del frontend, con la barra final incluida.
+`CLIENT_URL` no coincide con el dominio del frontend.
 
-**El chat no conecta, la API sí**
-`VITE_API_URL` mal configurado, o el proxy de `/socket.io` falta. En producción el frontend y el backend están en dominios distintos, así que no hay proxy: la URL del socket debe ser la del backend.
+**El chat no conecta pero la app sí**
+`VITE_API_URL` mal configurado. En producción no hay proxy: el socket debe
+apuntar al dominio del backend.
 
-**Las salas se desincronizan**
-El estado de sync vive en memoria. Con una sola instancia funciona; con varias hay que moverlo a Redis.
+**`502` o tarda mucho al abrir**
+El servicio de Render está despertando. Es normal la primera vez.
 
-**Los videos subidos desaparecen**
-El disco del contenedor es temporal. Sube los videos a S3/R2 o quédate solo con YouTube.
-
-**`SQLITE_BUSY` o base vacía**
-Quedó apuntando a SQLite. Revisa `provider` en `schema.prisma` y `DATABASE_URL`.
+**Las salas desaparecen**
+El plan gratuito reinicia el servicio. Con plan de pago se mantiene vivo.
 
 ---
 
-## Escalado a varias instancias
+## Ampliar cuando haga falta
 
-Cuando el tráfico lo justifique, el estado en memoria deja de servir:
+| Necesidad | Cambio |
+|---|---|
+| Más de una instancia del backend | El estado de sync está en memoria: mover a Redis (Upstash) |
+| Videos subidos (no solo YouTube) | Disco persistente o S3/R2; el plan gratis no tiene disco |
+| Sin que se duerma | Plan de pago en Render |
 
-1. **Sync y presencia** → Redis (Upstash) en lugar de `Map`
-2. **Base de datos** → Postgres con pool de conexiones (PgBouncer)
-3. **Sesiones** → los JWT no dependen del servidor, así que ya escalan solos
-4. **Rate limiting** → mover los contadores a Redis; hoy son por proceso
-
-Los puntos exactos a cambiar están marcados con comentarios en el código:
+Los puntos a cambiar están marcados con comentarios en el código:
 
 - `server/src/sockets/syncHandlers.ts` → `states` es el `Map`
 - `server/src/middleware/rateLimit.ts` → `buckets` es el `Map`
+
+---
+
+## Desarrollo local
+
+Requiere PostgreSQL corriendo:
+
+```bash
+npm run setup
+npm run dev
+```
+
+Para levantar solo la base de datos en Docker (si lo tienes):
+
+```bash
+docker compose up -d db
+```

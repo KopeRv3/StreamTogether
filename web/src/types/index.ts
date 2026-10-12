@@ -1,6 +1,5 @@
 export interface User {
   id: string;
-  email: string;
   username: string;
   avatarUrl: string | null;
   createdAt: string;
@@ -14,7 +13,7 @@ export interface Video {
   description: string | null;
   duration: number;
   thumbnailUrl: string | null;
-  /** Upload: ruta local /uploads/...  YouTube: URL original */
+  /** Upload: ruta local /uploads/...   YouTube: URL original */
   videoUrl: string;
   /** Solo presente cuando source === 'youtube' */
   youtubeId: string | null;

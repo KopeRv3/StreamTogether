@@ -3,15 +3,16 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+/// Un usuario es solo un nombre dentro de una sala: no hay correo ni
+/// contraseña. El token JWT se emite al entrar y sirve para reconocer la
+/// sesión, no para autenticar.
 model User {
   id           String   @id @default(uuid())
-  email        String   @unique
   username     String   @unique
-  passwordHash String
   avatarUrl    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

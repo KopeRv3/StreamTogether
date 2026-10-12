@@ -52,46 +52,36 @@ async function main() {
   console.log('\n2. Conexion real de socket.io-client a traves del proxy');
   console.log('   (esto exige el upgrade a WebSocket: valida ws:true)');
 
-  // Necesitamos un token valido. El endpoint de registro tiene un limitador
-  // estricto (10 por 15 min), asi que primero probamos con un login: si hay
-  // un usuario sembrado, el login tiene su propio cupo y suele estar libre.
+  // Necesitamos un token valido. Basta con entrar con un nombre.
   let token = null;
 
   try {
-    const res = await fetch(`${VITE}/api/auth/login`, {
+    const res = await fetch(`${VITE}/api/auth/guest`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'ana@demo.local', password: 'demo1234' }),
+      body: JSON.stringify({ username: 'Ana' }),
     });
     const data = await res.json();
     token = data.token ?? null;
-    ok('se obtuvo un token (usuario de la semilla)', !!token, JSON.stringify(data).slice(0, 90));
+    ok('se obtuvo un token', !!token, JSON.stringify(data).slice(0, 90));
   } catch (err) {
-    ok('se obtuvo un token (usuario de la semilla)', false, err.message);
+    ok('se obtuvo un token', false, err.message);
   }
 
-  // Si el login no funciono, se intenta registrar uno temporal
+  // Si no funciono, se intenta con un nombre nuevo
   if (!token) {
     try {
       const stamp = Date.now();
-      const res = await fetch(`${VITE}/api/auth/register`, {
+      const res = await fetch(`${VITE}/api/auth/guest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: `proxy${stamp}@example.com`,
-          username: `proxy${stamp}`.slice(0, 28),
-          password: 'contrasena123',
-        }),
+        body: JSON.stringify({ username: `proxy ${stamp}`.slice(0, 30) }),
       });
       const data = await res.json();
       token = data.token ?? null;
-      ok(
-        'se registro un usuario temporal via el proxy',
-        !!token,
-        JSON.stringify(data).slice(0, 90),
-      );
+      ok('se entro como invitado via el proxy', !!token, JSON.stringify(data).slice(0, 90));
     } catch (err) {
-      ok('se registro un usuario temporal via el proxy', false, err.message);
+      ok('se entro como invitado via el proxy', false, err.message);
     }
   }
 

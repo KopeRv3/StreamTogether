@@ -1,7 +1,6 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
@@ -10,27 +9,21 @@ import { authRouter } from './routes/auth';
 import { roomsRouter } from './routes/rooms';
 import { videosRouter } from './routes/videos';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { corsMiddleware, esOrigenLocal } from './middleware/cors';
 import { apiLimiter } from './middleware/rateLimit';
 import { setupSocketHandlers } from './sockets';
 
 const app = express();
 const httpServer = createServer(app);
 
-// Solo acepta orígenes conocidos; en producción es la URL del frontend
+// En producción solo se acepta CLIENT_URL. En desarrollo se añaden los
+// orígenes de la red local para poder probar desde el celular.
+const esProduccion = config.nodeEnv === 'production';
+
 const allowedOrigins = config.clientUrl
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
-
-const corsOptions = {
-  origin(origin: string | undefined, callback: (err: Error | null, ok?: boolean) => void) {
-    // Sin origin = curl, Postman, apps móviles → permitido
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`Origen no permitido por CORS: ${origin}`));
-  },
-  credentials: true,
-};
 
 // Cabeceras de seguridad. El CSP se deja relajado porque el player de
 // YouTube necesita cargar scripts y frames de youtube-nocookie.com.
@@ -41,7 +34,7 @@ app.use(
   }),
 );
 
-app.use(cors(corsOptions));
+app.use(corsMiddleware(allowedOrigins, esProduccion));
 
 // Límite global de peticiones
 app.use('/api', apiLimiter);
@@ -79,11 +72,19 @@ app.use('/api', notFoundHandler);
 // Error handling: siempre el ultimo
 app.use(errorHandler);
 
-// Socket.IO
+/** Mismo criterio de origen que la API, reutilizado por Socket.IO. */
+function origenPermitido(origin: string | undefined): boolean {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  return !esProduccion && esOrigenLocal(origin);
+}
+
 const io = new Server(httpServer, {
-  cors: { origin: allowedOrigins.length ? allowedOrigins : true, credentials: true },
-  // Necesario para video largo: los mensajes de socket son pequeños,
-  // pero el ping por defecto es corto en redes móviles
+  cors: {
+    origin: origenPermitido,
+    credentials: true,
+  },
+  // En redes moviles el ping por defecto es corto y la conexion se cae
   pingTimeout: 25000,
   pingInterval: 20000,
 });

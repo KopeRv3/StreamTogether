@@ -78,18 +78,15 @@ function uniqueYtId(n) {
   return out;
 }
 
-const user = (n) => ({
-  email: `test${n}.${stamp}@example.com`,
-  username: `test${n}_${stamp}`.slice(0, 28),
-  password: 'contrasena123',
-});
-
+/** Entrar con un nombre. No hay correo ni contrasena. */
 async function register(n) {
-  const payload = user(n);
-  const res = await api('/api/auth/register', { method: 'POST', body: payload });
-  if (res.status !== 201) {
+  const res = await api('/api/auth/guest', {
+    method: 'POST',
+    body: { username: `test${n} ${stamp}`.slice(0, 30) },
+  });
+  if (res.status !== 200) {
     throw new Error(
-      `No se pudo registrar el usuario ${n}: HTTP ${res.status} ${JSON.stringify(res.body)}` +
+      `No se pudo entrar como invitado ${n}: HTTP ${res.status} ${JSON.stringify(res.body)}` +
         (res.status === 429
           ? '\n  -> El limitador esta activo. Reinicia el servidor antes de probar (tests/run.ps1 lo hace).'
           : ''),
@@ -161,57 +158,77 @@ async function main() {
   );
 
   // ------------------------------------------------------------------
-  section('2. Autenticacion');
+  section('2. Entrar con un nombre (sin correo ni contrasena)');
   const host = await register(1);
-  ok('registro de anfitrion', !!host.token && !!host.user?.id);
-  ok('la respuesta no incluye passwordHash', !('passwordHash' in host.user));
+  ok('entra el anfitrion', !!host.token && !!host.user?.id);
+  ok(
+    'la respuesta solo trae datos publicos',
+    !('email' in host.user) && !('passwordHash' in host.user),
+  );
 
   const guest = await register(2);
-  ok('registro de participante', !!guest.token);
+  ok('entra el participante', !!guest.token);
 
   const intruder = await register(3);
-  ok('registro de usuario externo', !!intruder.token);
+  ok('entra un usuario externo', !!intruder.token);
 
-  const login = await api('/api/auth/login', {
+  // El mismo nombre devuelve la misma identidad
+  const repetir = await api('/api/auth/guest', {
     method: 'POST',
-    body: { email: host.user.email, password: 'contrasena123' },
-  });
-  ok('login con credenciales correctas', login.status === 200, `status ${login.status}`);
-
-  const badLogin = await api('/api/auth/login', {
-    method: 'POST',
-    body: { email: host.user.email, password: 'incorrecta' },
+    body: { username: host.user.username },
   });
   ok(
-    'login con contrasena incorrecta da 401',
-    badLogin.status === 401,
-    `status ${badLogin.status}`,
+    'entrar dos veces con el mismo nombre da el mismo usuario',
+    repetir.body?.user?.id === host.user.id,
+    `status ${repetir.status}`,
+  );
+  ok('y devuelve un token nuevo', !!repetir.body?.token);
+
+  const me = await api('/api/auth/me', { token: host.token });
+  ok(
+    'el token identifica la sesion',
+    me.status === 200 && me.body?.user?.username === host.user.username,
+    `status ${me.status}`,
   );
 
-  const weak = await api('/api/auth/register', {
-    method: 'POST',
-    body: { email: `weak${stamp}@example.com`, username: `weak${stamp}`, password: '123' },
-  });
-  ok('registro con contrasena corta es rechazado', weak.status === 400, `status ${weak.status}`);
+  // Validaciones del nombre
+  const sinNombre = await api('/api/auth/guest', { method: 'POST', body: {} });
+  ok('entrar sin nombre da 400', sinNombre.status === 400, `status ${sinNombre.status}`);
 
-  const badEmail = await api('/api/auth/register', {
+  const nombreCorto = await api('/api/auth/guest', { method: 'POST', body: { username: 'a' } });
+  ok('un nombre de un caracter da 400', nombreCorto.status === 400, `status ${nombreCorto.status}`);
+
+  const nombreLargo = await api('/api/auth/guest', {
     method: 'POST',
-    body: { email: 'no-es-un-email', username: `x${stamp}`, password: '1234567' },
+    body: { username: 'x'.repeat(200) },
+  });
+  ok('un nombre muy largo da 400', nombreLargo.status === 400, `status ${nombreLargo.status}`);
+
+  const nombreRaro = await api('/api/auth/guest', {
+    method: 'POST',
+    body: { username: '<script>alert(1)</script>' },
   });
   ok(
-    'registro con email invalido es rechazado',
-    badEmail.status === 400,
-    `status ${badEmail.status}`,
+    'un nombre con simbolos peligrosos da 400',
+    nombreRaro.status === 400,
+    `status ${nombreRaro.status}`,
   );
 
-  const badUser = await api('/api/auth/register', {
+  const nombreAcento = await api('/api/auth/guest', {
     method: 'POST',
-    body: { email: `sp${stamp}@example.com`, username: 'a b', password: '1234567' },
+    body: { username: 'José Ñandú' },
   });
   ok(
-    'registro con username invalido es rechazado',
-    badUser.status === 400,
-    `status ${badUser.status}`,
+    'un nombre con acentos y enie es valido',
+    nombreAcento.status === 200,
+    `status ${nombreAcento.status}`,
+  );
+
+  const endpointViejo = await api('/api/auth/login', { method: 'POST', body: {} });
+  ok(
+    'el endpoint antiguo de login ya no existe',
+    endpointViejo.status === 404,
+    `status ${endpointViejo.status}`,
   );
 
   const noAuth = await api('/api/rooms', { method: 'POST' });
@@ -509,17 +526,17 @@ async function main() {
   // ------------------------------------------------------------------
   section('8. Rate limiting');
   const attempts = [];
-  for (let i = 0; i < 16; i++) {
-    const r = await api('/api/auth/login', {
+  for (let i = 0; i < 70; i++) {
+    const r = await api('/api/auth/guest', {
       method: 'POST',
-      body: { email: 'nadie@example.com', password: 'incorrecta' },
+      body: { username: `carga ${i} ${stamp}`.slice(0, 30) },
     });
     attempts.push(r.status);
   }
   ok(
-    'el login se bloquea tras muchos intentos (anti fuerza bruta)',
+    'crear identidades se limita tras muchas entradas',
     attempts.includes(429),
-    `estados: ${attempts.join(',')}`,
+    `estados: ${attempts.slice(0, 3).join(',')}...`,
   );
 
   // El limite de videos es 20 por hora; saturamos hasta que aparezca el 429

@@ -1,5 +1,3 @@
-import { AppError } from '../middleware/errorHandler';
-
 /**
  * Validadores sin dependencias, para no tener que sincronizar reglas entre
  * el cliente y el servidor con dos librerias distintas.
@@ -8,14 +6,13 @@ import { AppError } from '../middleware/errorHandler';
  * aqui se vuelve a comprobar porque el cliente puede falsearse.
  */
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,30}$/;
+import { AppError } from '../middleware/errorHandler';
+
+const USERNAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]*$/u;
 
 export const LIMITS = {
-  usernameMin: 3,
+  usernameMin: 2,
   usernameMax: 30,
-  passwordMin: 6,
-  passwordMax: 200,
   messageMax: 500,
   titleMax: 200,
   descriptionMax: 2000,
@@ -29,47 +26,34 @@ export function assert(condition: unknown, message: string, code?: string): asse
   }
 }
 
-export function validateEmail(value: unknown): string {
-  assert(typeof value === 'string', 'El email es requerido', 'EMAIL_REQUERIDO');
-
-  const email = (value as string).trim().toLowerCase();
-
-  assert(email.length <= 254, 'El email es demasiado largo', 'EMAIL_LARGO');
-  assert(EMAIL_RE.test(email), 'El email no tiene un formato valido', 'EMAIL_INVALIDO');
-
-  return email;
-}
-
+/**
+ * El nombre es lo unico que identifica a la persona dentro de la sala,
+ * asi que se admiten letras (incluidas acentuadas), numeros, espacios,
+ * punto, guion y guion bajo. Se rechaza lo que rompa la interfaz o pueda
+ * confundirse con enlaces.
+ */
 export function validateUsername(value: unknown): string {
-  assert(typeof value === 'string', 'El username es requerido', 'USERNAME_REQUERIDO');
+  assert(typeof value === 'string', 'Escribe un nombre para entrar', 'NOMBRE_REQUERIDO');
 
-  const username = (value as string).trim();
+  const username = value.trim().replace(/\s+/g, ' ');
 
   assert(
-    username.length >= LIMITS.usernameMin && username.length <= LIMITS.usernameMax,
-    `El username debe tener entre ${LIMITS.usernameMin} y ${LIMITS.usernameMax} caracteres`,
-    'USERNAME_LARGO',
+    username.length >= LIMITS.usernameMin,
+    `El nombre debe tener al menos ${LIMITS.usernameMin} caracteres`,
+    'NOMBRE_CORTO',
+  );
+  assert(
+    username.length <= LIMITS.usernameMax,
+    `El nombre no puede superar ${LIMITS.usernameMax} caracteres`,
+    'NOMBRE_LARGO',
   );
   assert(
     USERNAME_RE.test(username),
-    'El username solo admite letras, numeros, punto, guion y guion bajo',
-    'USERNAME_INVALIDO',
+    'El nombre solo admite letras, numeros, espacios y . _ -',
+    'NOMBRE_INVALIDO',
   );
 
   return username;
-}
-
-export function validatePassword(value: unknown): string {
-  assert(typeof value === 'string', 'La contrasena es requerida', 'PASSWORD_REQUERIDO');
-
-  assert(
-    value.length >= LIMITS.passwordMin,
-    `La contrasena debe tener al menos ${LIMITS.passwordMin} caracteres`,
-    'PASSWORD_CORTA',
-  );
-  assert(value.length <= LIMITS.passwordMax, 'La contrasena es demasiado larga', 'PASSWORD_LARGA');
-
-  return value;
 }
 
 export function validateRoomCode(value: unknown): string {

@@ -60,11 +60,9 @@ async function api(path, { method = 'GET', body, token } = {}) {
   return { status: res.status, body: json };
 }
 
-function login(username, password) {
-  return api('/api/auth/login', {
-    method: 'POST',
-    body: { email: `${username}@demo.local`, password },
-  });
+/** Entrar con un nombre, sin correo ni contrasena. */
+function login(username) {
+  return api('/api/auth/guest', { method: 'POST', body: { username } });
 }
 
 function connect(token) {
@@ -171,11 +169,11 @@ async function main() {
 
   // ------------------------------------------------------------------
   section('1. Dos usuarios en la misma sala');
-  const ana = await login('ana', 'demo1234');
-  const beto = await login('beto', 'demo1234');
+  const ana = await login('Ana');
+  const beto = await login('Beto');
 
-  ok('ana inicia sesion', ana.status === 200, `status ${ana.status}`);
-  ok('beto inicia sesion', beto.status === 200, `status ${beto.status}`);
+  ok('Ana entra', ana.status === 200, `status ${ana.status}`);
+  ok('Beto entra', beto.status === 200, `status ${beto.status}`);
 
   const roomRes = await api('/api/rooms', { method: 'POST', token: ana.body.token });
   ok('ana crea la sala', roomRes.status === 201, `status ${roomRes.status}`);
@@ -271,7 +269,7 @@ async function main() {
 
   // ------------------------------------------------------------------
   section('5. Entrar tarde: el estado actual se comparte');
-  const carla = await login('carla', 'demo1234');
+  const carla = await login('Carla');
 
   // Carla primero se une por la API, igual que haria la UI al meter el codigo.
   // Si se conecta al socket sin ser participante, el servidor le niega el
@@ -303,13 +301,9 @@ async function main() {
   ok('y sabe que esta en pausa', carlaPlayer.playing === false);
 
   // Y ademas: un usuario NO miembro no puede pedir el estado
-  const forastero = await api('/api/auth/register', {
+  const forastero = await api('/api/auth/guest', {
     method: 'POST',
-    body: {
-      email: `forastero${Date.now()}@example.com`,
-      username: `forastero${Date.now()}`.slice(0, 28),
-      password: 'contrasena123',
-    },
+    body: { username: `forastero ${Date.now()}`.slice(0, 30) },
   });
   const forasteroSock = await connect(forastero.body.token);
   const denied = new Promise((resolve) => {
@@ -367,7 +361,7 @@ async function main() {
   ok('el mensaje explica por que', err?.message?.includes('anfitri') === true, JSON.stringify(err));
 
   const intruder = await api(`/api/rooms/${room.id}/messages`, {
-    token: (await login('ana', 'demo1234')).body.token,
+    token: (await login('Ana')).body.token,
   });
   ok(
     'un participante sí puede leer el historial',

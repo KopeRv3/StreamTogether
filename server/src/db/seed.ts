@@ -1,25 +1,9 @@
-/**
- * Semilla de datos de desarrollo.
- *
- * Crea usuarios de prueba y algunos videos de YouTube para poder probar
- * la app sin subir nada a mano.
- *
- *   npm run db:seed
- *
- * Es idempotente: si ya existen, no duplica nada.
- */
-
 import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
 import { extractYouTubeId, youtubeThumbnail } from '../utils/youtube';
 
 const prisma = new PrismaClient();
 
-const DEMO_USERS = [
-  { username: 'ana', email: 'ana@demo.local', password: 'demo1234' },
-  { username: 'beto', email: 'beto@demo.local', password: 'demo1234' },
-  { username: 'carla', email: 'carla@demo.local', password: 'demo1234' },
-];
+const DEMO_USERS = ['Ana', 'Beto', 'Carla'];
 
 const DEMO_VIDEOS = [
   {
@@ -32,27 +16,27 @@ const DEMO_VIDEOS = [
     title: 'Segundo video de muestra',
     description: 'Sirve para probar el cambio de video en la sala.',
   },
+  {
+    url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+    title: 'Big Buck Bunny',
+    description: 'Animacion de dominio publico, util para probar.',
+  },
 ];
 
 async function seedUsers() {
-  const passwordHash = await bcrypt.hash('demo1234', 10);
   const created = [];
 
-  for (const user of DEMO_USERS) {
-    const existing = await prisma.user.findUnique({ where: { email: user.email } });
+  for (const username of DEMO_USERS) {
+    const existing = await prisma.user.findUnique({ where: { username } });
 
     if (existing) {
-      console.log(`  - ${user.username}: ya existe`);
+      console.log(`  - ${username}: ya existe`);
       continue;
     }
 
-    const record = await prisma.user.create({
-      data: { email: user.email, username: user.username, passwordHash },
-      select: { id: true, username: true },
-    });
-
-    console.log(`  + ${record.username}`);
-    created.push(record);
+    await prisma.user.create({ data: { username } });
+    console.log(`  + ${username}`);
+    created.push(username);
   }
 
   return created;
@@ -67,9 +51,7 @@ async function seedVideos(ownerId: string) {
       continue;
     }
 
-    const existing = await prisma.video.findFirst({
-      where: { youtubeId, status: 'active' },
-    });
+    const existing = await prisma.video.findFirst({ where: { youtubeId, status: 'active' } });
 
     if (existing) {
       console.log(`  - ${video.title}: ya existe`);
@@ -96,22 +78,25 @@ async function seedVideos(ownerId: string) {
 async function main() {
   console.log('\nSembrando datos de desarrollo\n');
 
-  const users = await seedUsers();
+  const nuevos = await seedUsers();
   console.log('');
 
-  const owner = users[0] ?? (await prisma.user.findFirst({ select: { id: true } }));
+  const owner = await prisma.user.findFirst({
+    where: { username: { in: DEMO_USERS } },
+    select: { id: true },
+  });
 
   if (owner) {
     await seedVideos(owner.id);
-  } else {
-    console.log('No hay usuarios: ejecuta primero el registro desde la app.');
+  } else if (nuevos.length === 0) {
+    console.log('No hay usuarios: escribe un nombre en la app para crear el primero.');
   }
 
-  console.log('\nListo. Credenciales de prueba:');
-  for (const user of DEMO_USERS) {
-    console.log(`  ${user.username} / ${user.password}`);
+  console.log('\nListo. Estos nombres ya funcionan para entrar:');
+  for (const username of DEMO_USERS) {
+    console.log(`  ${username}`);
   }
-  console.log('');
+  console.log('\nNo hay contrasena: se entra escribiendo el nombre.\n');
 }
 
 main()
